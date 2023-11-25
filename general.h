@@ -114,7 +114,7 @@ static inline s64 round_to_nearest_mulpow2(s64 n, u64 pow2) {
 #define COLUMN __builtin_COLUMN()
 #define debug_break() __builtin_trap()
 #define unreachable() __builtin_unreachable()
-#define assert_unreachable() { error(tostr(FILE), (Position){ 0, 0 }, "Unreachable code reached.\n"); debug_break(); }
+#define assert_unreachable() { error(tostr(FILE), (Position){ LINE-1, 0 }, "Unreachable code reached.\n"); debug_break(); }
 
 // ------------------------------------ //
 
