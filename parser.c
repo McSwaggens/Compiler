@@ -5,37 +5,52 @@ bool is_correct_indent(Token* token, Indent16 indent) {
 	return !token->newline || token->indent == indent;
 }
 
-Expression* alloc_expression(Module* module) {
+Expression* alloc_expression(void) {
 	return stack_alloc(sizeof(Expression));
 }
 
 void scope_push_var(Scope* scope, Variable* var) {
-	scope->variables = realloc(scope->variables, scope->variable_count*sizeof(Variable*), next_pow2(scope->variable_count+7)*sizeof(Variable*));
+	if (scope->variable_count == scope->variable_capacity) {
+		scope->variable_capacity = next_pow2(scope->variable_capacity+7);
+		scope->variables = realloc(
+			scope->variables,
+			sizeof(Variable*)*scope->variable_count,
+			sizeof(Variable*)*scope->variable_capacity
+		);
+	}
+
 	scope->variables[scope->variable_count++] = var;
 }
 
 void push_statement(Code* code, Statement statement) {
-	code->statements = realloc(code->statements, code->statement_count*sizeof(Statement), next_pow2(code->statement_count+15)*sizeof(Statement));
+	if (code->statement_count == code->statement_capacity) {
+		code->statement_capacity = next_pow2(code->statement_capacity+15);
+		code->statements = realloc(
+			code->statements,
+			sizeof(Statement)*code->statement_count,
+			sizeof(Statement)*code->statement_capacity
+		);
+	}
+
 	code->statements[code->statement_count++] = statement;
 }
 
 void push_function(Module* module, Function func) {
-	module->functions = realloc(module->functions, module->function_count*sizeof(Function), next_pow2(module->function_count+31)*sizeof(Function));
 	module->functions[module->function_count++] = func;
 }
 
 // @Note: Don't use 15, it's reserved for parsing a single expression.
 u8 unary_precedence(TokenKind kind) {
 	switch (kind) {
-		case TOKEN_PLUS:             return 13;
-		case TOKEN_MINUS:            return 13;
-		case TOKEN_ASTERISK:         return 13;
-		case TOKEN_EXCLAMATION:      return 13;
-		case TOKEN_TILDA:            return 13;
-		case TOKEN_AT:               return 13;
-		case TOKEN_PIKE:             return 13;
-		case TOKEN_BACK_SLASH:       return 13;
-		case TOKEN_LESS:             return 13;
+		case TOKEN_PLUS:
+		case TOKEN_MINUS:
+		case TOKEN_ASTERISK:
+		case TOKEN_EXCLAMATION:
+		case TOKEN_TILDA:
+		case TOKEN_AT:
+		case TOKEN_PIKE:
+		case TOKEN_BACK_SLASH:
+		case TOKEN_LESS:
 		case TOKEN_OPEN_BRACKET:     return 13;
 		default:                     return 0;
 	}
@@ -43,7 +58,7 @@ u8 unary_precedence(TokenKind kind) {
 
 u8 postfix_precedence(TokenKind kind) {
 	switch (kind) {
-		case TOKEN_OPEN_BRACKET:     return 14;
+		case TOKEN_OPEN_BRACKET:
 		case TOKEN_OPEN_PAREN:       return 14;
 		default:                     return 0;
 	}
@@ -55,23 +70,23 @@ u8 binary_precedence(TokenKind kind) {
 
 		case TOKEN_ARROW:            return 8;
 
-		case TOKEN_ASTERISK:         return 7;
-		case TOKEN_SLASH:            return 7;
-		case TOKEN_BACK_SLASH:       return 7;
-		case TOKEN_LEFT_SHIFT:       return 7;
+		case TOKEN_ASTERISK:
+		case TOKEN_SLASH:
+		case TOKEN_BACK_SLASH:
+		case TOKEN_LEFT_SHIFT:
 		case TOKEN_RIGHT_SHIFT:      return 7;
 
-		case TOKEN_PIKE:             return 6;
-		case TOKEN_AMPERSAND:        return 6;
-		case TOKEN_CARET:            return 6;
-		case TOKEN_PLUS:             return 6;
+		case TOKEN_PIKE:
+		case TOKEN_AMPERSAND:
+		case TOKEN_CARET:
+		case TOKEN_PLUS:
 		case TOKEN_MINUS:            return 6;
 
-		case TOKEN_EQUAL:            return 5;
-		case TOKEN_NOT_EQUAL:        return 5;
-		case TOKEN_LESS:             return 5;
-		case TOKEN_LESS_OR_EQUAL:    return 5;
-		case TOKEN_GREATER:          return 5;
+		case TOKEN_EQUAL:
+		case TOKEN_NOT_EQUAL:
+		case TOKEN_LESS:
+		case TOKEN_LESS_OR_EQUAL:
+		case TOKEN_GREATER:
 		case TOKEN_GREATER_OR_EQUAL: return 5;
 
 		case TOKEN_AND:              return 2;
@@ -169,9 +184,9 @@ bool is_identifier(TokenKind kind) {
 	}
 }
 
-void check_indent(Token* token, Indent16 indent) {
+void check_indent(Module* module, Token* token, Indent16 indent) {
 	if (!is_correct_indent(token, indent))
-		error("Incorrect indentation\n");
+		error(module->file, token->pos, "Incorrect indentation\n");
 }
 
 u8 correct_unary_precedence(u8 precedence, Token* token) {
@@ -191,120 +206,52 @@ u8 correct_binary_precedence(u8 precedence, Token* token) {
 Token* parse_code(Module* module, Token* token, Indent16 indent, Code* code);
 Token* parse_expression(Module* module, Token* token, Indent16 indent, bool allow_equals, Expression** out);
 
-Token* parse_enum(Module* module, Token* token, Indent16 indent, Enum* out) {
-	assert(token->kind == TOKEN_ENUM);
-	*out = (Enum){ 0 };
-
-	token++;
-
-	if (token->kind != TOKEN_IDENTIFIER_FORMAL)
-		error("Expected formal name after 'enum', not: %\n", arg_token(token));
-	check_indent(token, indent);
-
-	out->name = token;
-	token++;
-
-	if (token->kind == TOKEN_ARROW) {
-		check_indent(token, indent+1);
-		token++;
-
-		if (!is_expression_starter(token->kind))
-			error("Expected type after '->', not: %\n", arg_token(token));
-
-		check_indent(token, indent+1);
-		token = parse_expression(module, token, indent+1, true, &out->type);
-	}
-
-	if (token->kind != TOKEN_COLON)
-		error("Expected ':', not: %\n", arg_token(token));
-	check_indent(token, indent);
-	token++;
-
-	while (is_correct_indent(token, indent+1)) {
-		EnumField field = { 0 };
-
-		if (token->kind == TOKEN_IDENTIFIER_VARIABLE)
-			error("Enum field with variable name is not allowed: %\n", arg_token(token));
-
-		if (token->kind != TOKEN_IDENTIFIER_CONSTANT)
-			error("Expected field name, not: %\n", arg_token(token));
-
-		field.name = token;
-		token++;
-
-		if (token->kind == TOKEN_EQUAL && is_correct_indent(token, indent+2)) {
-			check_indent(token, indent+2);
-			token++;
-
-			check_indent(token, indent+2);
-			if (!is_expression_starter(token->kind))
-				error("Expected expression after '=', not: %\n", arg_token(token));
-
-			token = parse_expression(module, token, indent+2, true, &field.value);
-		}
-
-		out->fields = realloc(out->fields, sizeof(EnumField)*(out->field_count), sizeof(EnumField)*(out->field_count+1));
-		out->fields[out->field_count++] = field;
-
-		if (token->kind == TOKEN_SEMICOLON && is_correct_indent(token, indent+1)) {
-			token++;
-			continue;
-		}
-
-		if (!token->newline && token->kind == TOKEN_IDENTIFIER_FORMAL)
-			error("Missing ';' before next field: %\n", arg_token(token));
-
-		if (!token->newline)
-			error("Unexpected token: %\n", arg_token(token));
-	}
-
-	return token;
-}
-
-Token* ParseStruct(Module* module, Token* token, Indent16 indent, Struct* out) {
+Token* parse_struct(Module* module, Token* token, Indent16 indent) {
 	assert(token->kind == TOKEN_STRUCT);
-	*out = (Struct){ 0 };
+
+	Struct* ast = &module->structs[module->struct_count++];
+	*ast = (Struct){ 0 };
 
 	token++;
 
 	if (token->kind != TOKEN_IDENTIFIER_FORMAL)
-		error("Expected formal name after 'struct', not: %\n", arg_token(token));
-	check_indent(token, indent);
+		error(module->file, token->pos, "Expected formal name after 'struct', not: %\n", arg_token(token));
+	check_indent(module, token, indent);
 
-	out->name = token;
+	ast->name = token;
 	token++;
 
-	// print("Parsing struct: %\n", arg_token(out->name));
+	// print("Parsing struct: %\n", arg_token(ast->name));
 
 	if (token->kind != TOKEN_COLON)
-		error("Expected ':', not: %\n", arg_token(token));
-	check_indent(token, indent);
+		error(module->file, token->pos, "Expected ':', not: %\n", arg_token(token));
+	check_indent(module, token, indent);
 	token++;
 
 	while (is_correct_indent(token, indent+1)) {
 		StructField field = { 0 };
 
 		if (token->kind == TOKEN_IDENTIFIER_CONSTANT || token->kind == TOKEN_IDENTIFIER_FORMAL)
-			error("Struct field with constant name\n");
+			error(module->file, token->pos, "Struct field with constant name\n");
 
 		if (token->kind != TOKEN_IDENTIFIER_VARIABLE)
-			error("Expected field name, not: %\n", arg_token(token));
+			error(module->file, token->pos, "Expected field name, not: %\n", arg_token(token));
 
 		field.name = token;
 		token++;
 
 		if (token->kind != TOKEN_COLON)
-			error("Expected ':', not: %\n", arg_token(token));
-		check_indent(token, indent+2);
+			error(module->file, token->pos, "Expected ':', not: %\n", arg_token(token));
+		check_indent(module, token, indent+2);
 		token++;
 
 		if (!is_expression_starter(token->kind))
-			error("Expected type after ':', not: %\n", arg_token(token));
+			error(module->file, token->pos, "Expected type after ':', not: %\n", arg_token(token));
 
 		token = parse_expression(module, token, indent+2, true, &field.type);
 
-		out->fields = realloc(out->fields, sizeof(StructField)*(out->field_count), sizeof(StructField)*(out->field_count+1));
-		out->fields[out->field_count++] = field;
+		ast->fields = realloc(ast->fields, sizeof(StructField)*(ast->field_count), sizeof(StructField)*(ast->field_count+1));
+		ast->fields[ast->field_count++] = field;
 
 		if (token->kind == TOKEN_SEMICOLON && is_correct_indent(token, indent+1)) {
 			token++;
@@ -312,10 +259,82 @@ Token* ParseStruct(Module* module, Token* token, Indent16 indent, Struct* out) {
 		}
 
 		if (!token->newline && token->kind == TOKEN_IDENTIFIER_VARIABLE)
-			error("Missing ';' before next field: %\n", arg_token(token));
+			error(module->file, token->pos, "Missing ';' before next field: %\n", arg_token(token));
 
 		if (!token->newline)
-			error("Unexpected token: %\n", arg_token(token));
+			error(module->file, token->pos, "Unexpected token: %\n", arg_token(token));
+	}
+
+	return token;
+}
+
+Token* parse_enum(Module* module, Token* token, Indent16 indent) {
+	assert(token->kind == TOKEN_ENUM);
+
+	Enum* ast = &module->enums[module->enum_count++];
+	*ast = (Enum){ 0 };
+
+	token++;
+
+	if (token->kind != TOKEN_IDENTIFIER_FORMAL)
+		error(module->file, token->pos, "Expected formal name after 'enum', not: %\n", arg_token(token));
+	check_indent(module, token, indent);
+
+	ast->name = token;
+	token++;
+
+	if (token->kind == TOKEN_ARROW) {
+		check_indent(module, token, indent+1);
+		token++;
+
+		if (!is_expression_starter(token->kind))
+			error(module->file, token->pos, "Expected type after '->', not: %\n", arg_token(token));
+
+		check_indent(module, token, indent+1);
+		token = parse_expression(module, token, indent+1, true, &ast->type);
+	}
+
+	if (token->kind != TOKEN_COLON)
+		error(module->file, token->pos, "Expected ':', not: %\n", arg_token(token));
+	check_indent(module, token, indent);
+	token++;
+
+	while (is_correct_indent(token, indent+1)) {
+		EnumField field = { 0 };
+
+		if (token->kind == TOKEN_IDENTIFIER_VARIABLE)
+			error(module->file, token->pos, "Enum field with variable name is not allowed: %\n", arg_token(token));
+
+		if (token->kind != TOKEN_IDENTIFIER_CONSTANT)
+			error(module->file, token->pos, "Expected field name, not: %\n", arg_token(token));
+
+		field.name = token;
+		token++;
+
+		if (token->kind == TOKEN_EQUAL && is_correct_indent(token, indent+2)) {
+			check_indent(module, token, indent+2);
+			token++;
+
+			check_indent(module, token, indent+2);
+			if (!is_expression_starter(token->kind))
+				error(module->file, token->pos, "Expected expression after '=', not: %\n", arg_token(token));
+
+			token = parse_expression(module, token, indent+2, true, &field.value);
+		}
+
+		ast->fields = realloc(ast->fields, sizeof(EnumField)*(ast->field_count), sizeof(EnumField)*(ast->field_count+1));
+		ast->fields[ast->field_count++] = field;
+
+		if (token->kind == TOKEN_SEMICOLON && is_correct_indent(token, indent+1)) {
+			token++;
+			continue;
+		}
+
+		if (!token->newline && token->kind == TOKEN_IDENTIFIER_FORMAL)
+			error(module->file, token->pos, "Missing ';' before next field: %\n", arg_token(token));
+
+		if (!token->newline)
+			error(module->file, token->pos, "Unexpected token: %\n", arg_token(token));
 	}
 
 	return token;
@@ -328,7 +347,7 @@ typedef struct ExpressionParseHelper {
 	s8 adjustment;
 } ExpressionParseHelper;
 
-bool test_expression_indent(Token* token, ExpressionParseHelper* helper, s32 adjustment, bool error_if_invalid) {
+bool test_expression_indent(Module* module, Token* token, ExpressionParseHelper* helper, s32 adjustment, bool error_if_invalid) {
 	if (!token->newline)
 		return true;
 
@@ -350,7 +369,7 @@ bool test_expression_indent(Token* token, ExpressionParseHelper* helper, s32 adj
 		if (!error_if_invalid)
 			return false;
 
-		error("Invalid indent\n");
+		error(module->file, token->pos, "Invalid indent\n");
 	}
 
 	helper->adjustment = 1;
@@ -386,7 +405,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 		case TOKEN_LITERAL_FLOAT64:     kind = EXPR_LITERAL; goto GOTO_TERM;
 		case TOKEN_LITERAL_STRING:      kind = EXPR_LITERAL; goto GOTO_TERM;
 		GOTO_TERM:
-			left = alloc_expression(module);
+			left = alloc_expression();
 			left->kind = kind;
 			left->token = token;
 			token++;
@@ -395,7 +414,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 		case TOKEN_BYTE:   case TOKEN_BOOL:   case TOKEN_INT:     case TOKEN_INT8:    case TOKEN_INT16:
 		case TOKEN_INT32:  case TOKEN_INT64:  case TOKEN_UINT:    case TOKEN_UINT8:   case TOKEN_UINT16:
 		case TOKEN_UINT32: case TOKEN_UINT64: case TOKEN_FLOAT32: case TOKEN_FLOAT64: case TOKEN_TYPE_ID:
-			left = alloc_expression(module);
+			left = alloc_expression();
 			left->kind = EXPR_BASETYPE_PRIMITIVE;
 			left->token = token;
 			token++;
@@ -408,18 +427,18 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 		case TOKEN_MINUS:       kind = EXPR_UNARY_INVERSE; goto GOTO_UNARY;
 		case TOKEN_PLUS:        kind = EXPR_UNARY_ABS;     goto GOTO_UNARY;
 		GOTO_UNARY:
-			left = alloc_expression(module);
+			left = alloc_expression();
 			left->kind = kind;
 			left->token = token;
-			test_expression_indent(token+1, helper, 0, true);
+			test_expression_indent(module, token+1, helper, 0, true);
 			token = internal_parse_expression(module, token+1, allow_equals, unaryprec, helper, &left->right);
 			break;
 
 		case TOKEN_OPEN_BRACE: {
-			left = alloc_expression(module);
+			left = alloc_expression();
 			left->kind = EXPR_ARRAY;
 			left->token = token;
-			test_expression_indent(token, helper, 0, true);
+			test_expression_indent(module, token, helper, 0, true);
 			token++;
 
 			Expression** elems = null;
@@ -430,10 +449,10 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 			if (token->kind != TOKEN_CLOSE_BRACE)
 			while (true) {
 				if (token->kind == TOKEN_COMMA)
-					error("Missing expression before ','\n");
+					error(module->file, token->pos, "Missing expression before ','\n");
 
 				Expression* elem = null;
-				test_expression_indent(token, helper, 0, true);
+				test_expression_indent(module, token, helper, 0, true);
 				token = internal_parse_expression(module, token, true, 0, helper, &elem);
 
 				elems = realloc(elems, sizeof(Expression*) * (count), sizeof(Expression*) * (count+1));
@@ -443,16 +462,16 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 					break;
 
 				if (token->kind != TOKEN_COMMA)
-					error("Unexpected token %, expected ',' or '}'\n",
+					error(module->file, token->pos, "Unexpected token %, expected ',' or '}'\n",
 						arg_token(token)
 					);
 
-				test_expression_indent(token, helper, -1, true);
+				test_expression_indent(module, token, helper, -1, true);
 				token++;
 			}
 
 			helper->bracket_level--;
-			test_expression_indent(token, helper, 0, true);
+			test_expression_indent(module, token, helper, 0, true);
 			token++;
 
 			left->elems = elems;
@@ -461,10 +480,10 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 		} break;
 
 		case TOKEN_OPEN_PAREN: {
-			left = alloc_expression(module);
+			left = alloc_expression();
 			left->kind = EXPR_TUPLE;
 			left->token = token;
-			test_expression_indent(token, helper, 0, true);
+			test_expression_indent(module, token, helper, 0, true);
 			token++;
 
 			// print("Starting tuple parse...\n");
@@ -477,10 +496,10 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 			if (token->kind != TOKEN_CLOSE_PAREN)
 			while (true) {
 				if (token->kind == TOKEN_COMMA)
-					error("Missing expression before ','\n");
+					error(module->file, token->pos, "Missing expression before ','\n");
 
 				Expression* elem = null;
-				test_expression_indent(token, helper, 0, true);
+				test_expression_indent(module, token, helper, 0, true);
 				token = internal_parse_expression(module, token, true, 0, helper, &elem);
 
 				elems = realloc(elems, sizeof(Expression*) * (count), sizeof(Expression*) * (count+1));
@@ -491,19 +510,19 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 					break;
 
 				if (token->kind != TOKEN_COMMA)
-					error("Unexpected token %, expected ',' or ')'\n",
+					error(module->file, token->pos, "Unexpected token %, expected ',' or ')'\n",
 						arg_token(token)
 					);
 
-				test_expression_indent(token, helper, -1, true);
+				test_expression_indent(module, token, helper, -1, true);
 				token++;
 
 				if (token->kind == TOKEN_CLOSE_PAREN)
-					error("Missing expression after ','\n");
+					error(module->file, token->pos, "Missing expression after ','\n");
 			}
 
 			helper->bracket_level--;
-			test_expression_indent(token, helper, 0, true);
+			test_expression_indent(module, token, helper, 0, true);
 			token++;
 
 			left->elems = elems;
@@ -513,7 +532,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 		} break;
 
 		case TOKEN_OPEN_BRACKET: {
-			left = alloc_expression(module);
+			left = alloc_expression();
 			left->kind = EXPR_UNARY_SPEC_FIXED;
 			left->token = token;
 
@@ -523,32 +542,32 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 				left->kind = EXPR_UNARY_SPEC_ARRAY; // []e
 
 				// Take subexpression
-				test_expression_indent(token+2, helper, 0, true); // e
+				test_expression_indent(module, token+2, helper, 0, true); // e
 				token = internal_parse_expression(module, token+2, allow_equals, unaryprec, helper, &left->right);
 				break;
 			}
 
 			left->kind = EXPR_UNARY_SPEC_FIXED; // [N]e
-			test_expression_indent(token+1, helper, 0, true); // e
+			test_expression_indent(module, token+1, helper, 0, true); // e
 			token = internal_parse_expression(module, token+1, allow_equals, 0, helper, &left->left);
 
 			if (token->kind == TOKEN_DOT_DOT) {
-				test_expression_indent(token, helper, -1, true); // ..
+				test_expression_indent(module, token, helper, -1, true); // ..
 				left->kind = EXPR_BINARY_SPAN; // [a..b]
-				test_expression_indent(token+1, helper, 0, true); // b
+				test_expression_indent(module, token+1, helper, 0, true); // b
 				token = internal_parse_expression(module, token+1, allow_equals, 0, helper, &left->right);
 			}
 
 			if (token->kind != TOKEN_CLOSE_BRACKET)
-				error("Expected ']', not: %\n", arg_token(token));
+				error(module->file, token->pos, "Expected ']', not: %\n", arg_token(token));
 
 			helper->bracket_level--;
-			test_expression_indent(token, helper, 0, true); // ]
+			test_expression_indent(module, token, helper, 0, true); // ]
 			token++;
 
 			if (left->kind == EXPR_UNARY_SPEC_FIXED) { // [N]e
 				// Take subexpression
-				test_expression_indent(token, helper, 0, true); // e
+				test_expression_indent(module, token, helper, 0, true); // e
 				token = internal_parse_expression(module, token, allow_equals, unaryprec, helper, &left->right);
 			}
 		} break;
@@ -574,14 +593,14 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 		if (token->newline && !helper->bracket_level && token->indent <= helper->indent-1)
 			break;
 
-		test_expression_indent(token, helper, 0, true);
+		test_expression_indent(module, token, helper, 0, true);
 
 		precedence = correct_binary_precedence(precedence, token);
 
 		if (precedence <= parent_precedence)
 			break;
 
-		Expression* expr = alloc_expression(module);
+		Expression* expr = alloc_expression();
 		expr->left = left;
 		left = expr;
 
@@ -589,7 +608,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 
 		switch (token->kind) {
 			default:
-				error("parse_expression didn't handle binary operator %\n", arg_token(token));
+				error(module->file, token->pos, "parse_expression didn't handle binary operator %\n", arg_token(token));
 
 			case TOKEN_DOT:              expr->kind = EXPR_BINARY_DOT;              goto GOTO_BINARY_OP;
 
@@ -615,7 +634,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 			case TOKEN_AND:              expr->kind = EXPR_BINARY_AND;              goto GOTO_BINARY_OP;
 			case TOKEN_OR:               expr->kind = EXPR_BINARY_OR;               goto GOTO_BINARY_OP;
 			GOTO_BINARY_OP:
-				test_expression_indent(token+1, helper, 0, true);
+				test_expression_indent(module, token+1, helper, 0, true);
 				token = internal_parse_expression(module, token+1, allow_equals, precedence, helper, &expr->right);
 				break;
 
@@ -625,10 +644,10 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 				token++;
 
 				helper->bracket_level++;
-				test_expression_indent(token, helper, 0, true);
+				test_expression_indent(module, token, helper, 0, true);
 				token = internal_parse_expression(module, token, allow_equals, precedence, helper, &expr->right);
 				helper->bracket_level--;
-				test_expression_indent(token, helper, 0, true);
+				test_expression_indent(module, token, helper, 0, true);
 				token++;
 
 				break;
@@ -643,12 +662,12 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 				if (token->kind != TOKEN_CLOSE_PAREN)
 				while (true) {
 					expr->elems = realloc(expr->elems, sizeof(Expression*)*expr->elem_count, sizeof(Expression*)*expr->elem_count+1);
-					test_expression_indent(token, helper, 0, true);
+					test_expression_indent(module, token, helper, 0, true);
 					token = internal_parse_expression(module, token, allow_equals, precedence, helper, &expr->elems[expr->elem_count]);
 					expr->elem_count++;
 
 					if (token->kind == TOKEN_COMMA) {
-						test_expression_indent(token, helper, -1, true);
+						test_expression_indent(module, token, helper, -1, true);
 						token++;
 						continue;
 					}
@@ -656,24 +675,24 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 					if (token->kind == TOKEN_CLOSE_PAREN)
 						break;
 
-					error("Unexpected token in function parameters: %\n", arg_token(token));
+					error(module->file, token->pos, "Unexpected token in function parameters: %\n", arg_token(token));
 				}
 
 				helper->bracket_level--;
-				test_expression_indent(token, helper, 0, true);
+				test_expression_indent(module, token, helper, 0, true);
 				token++;
 
 				break;
 
 			case TOKEN_IF:
 				expr->kind = EXPR_TERNARY_IF_ELSE;
-				test_expression_indent(token+1, helper, 0, true);
+				test_expression_indent(module, token+1, helper, 0, true);
 				token = internal_parse_expression(module, token+1, true, precedence, helper, &expr->middle);
 
 				if (token->kind != TOKEN_ELSE)
-					error("Expected 'else' not: %\n", arg_token(token));
+					error(module->file, token->pos, "Expected 'else' not: %\n", arg_token(token));
 
-				test_expression_indent(token+1, helper, 0, true);
+				test_expression_indent(module, token+1, helper, 0, true);
 				token = internal_parse_expression(module, token+1, allow_equals, precedence, helper, &expr->right);
 				break;
 		}
@@ -716,31 +735,31 @@ Token* parse_variable_declaration(Module* module, Token* token, Indent16 indent,
 	token++;
 
 	if (token->kind != TOKEN_COLON)
-		error("Variable declaration expected ':', not: %\n", arg_token(token));
-	check_indent(token, indent+1);
+		error(module->file, token->pos, "Variable declaration expected ':', not: %\n", arg_token(token));
+	check_indent(module, token, indent+1);
 	token++;
 
 	if (is_expression_starter(token->kind)) {
-		check_indent(token, indent+1);
+		check_indent(module, token, indent+1);
 		token = parse_expression(module, token, indent+1, false, &out->type_expr);
 	}
 
 	if (!out->type_expr && token->kind != TOKEN_EQUAL)
-		error("Invalid variable declaration, expected type or '=', not: %\n", arg_token(token));
+		error(module->file, token->pos, "Invalid variable declaration, expected type or '=', not: %\n", arg_token(token));
 
 	if (token->kind == TOKEN_EQUAL) {
-		check_indent(token, indent+1);
+		check_indent(module, token, indent+1);
 		token++;
 
 		if (!is_expression_starter(token->kind))
-			error("Expected expression after '='\n", arg_token(token));
+			error(module->file, token->pos, "Expected expression after '='\n", arg_token(token));
 
-		check_indent(token, indent+1);
+		check_indent(module, token, indent+1);
 		token = parse_expression(module, token, indent+1, false, &out->init_expr);
 	}
 
 	if (is_const && !out->init_expr)
-		error("Constant declared without a value.\n");
+		error(module->file, token->pos, "Constant declared without a value.\n");
 
 	return token;
 }
@@ -751,21 +770,21 @@ Token* parse_match(Module* module, Token* token, Indent16 indent, Match* out) {
 
 		if (token->kind == TOKEN_THEN) {
 			if (token[1].kind != TOKEN_COLON)
-				error("Expected ':' after 'then', not: %\n", arg_token(token+1));
+				error(module->file, token->pos, "Expected ':' after 'then', not: %\n", arg_token(token+1));
 
-			check_indent(token,   indent);
-			check_indent(token+1, indent);
+			check_indent(module, token,   indent);
+			check_indent(module, token+1, indent);
 
 			if (!is_correct_indent(token, indent))
-				error("Code missing for 'then' clause in match statement\n");
+				error(module->file, token->pos, "Code missing for 'then' clause in match statement\n");
 		}
 		else {
 			if (token->kind == TOKEN_ELSE)
-				error("'else' clause not allowed in match statement\n");
+				error(module->file, token->pos, "'else' clause not allowed in match statement\n");
 
 			while (true) {
 				if (!is_expression_starter(token->kind))
-					error("Expected expression, not: %\n", arg_token(token));
+					error(module->file, token->pos, "Expected expression, not: %\n", arg_token(token));
 
 				Expression* expr = null;
 				token = parse_expression(module, token, indent+1, true, &expr);
@@ -776,14 +795,14 @@ Token* parse_match(Module* module, Token* token, Indent16 indent, Match* out) {
 				if (token->kind != TOKEN_COMMA)
 					break;
 
-				check_indent(token, indent);
+				check_indent(module, token, indent);
 				token++;
 			}
 
 			if (token->kind != TOKEN_COLON)
-				error("Expected ':', not: %\n", arg_token(token));
+				error(module->file, token->pos, "Expected ':', not: %\n", arg_token(token));
 
-			check_indent(token, indent);
+			check_indent(module, token, indent);
 
 			token = parse_code(module, token+1, indent+1, &group.code);
 
@@ -806,6 +825,10 @@ Token* parse_match(Module* module, Token* token, Indent16 indent, Match* out) {
 	return token;
 }
 
+Token* parse_if(Module* module) {
+	return null;
+}
+
 Token* parse_branch(Module* module, Token* token, Indent16 indent, Branch* branch) {
 	// print("Parsing new branch... token = %\n", arg_token(token));
 
@@ -814,30 +837,30 @@ Token* parse_branch(Module* module, Token* token, Indent16 indent, Branch* branc
 	switch (token->kind) {
 		case TOKEN_COLON: {
 			branch->kind = BRANCH_NAKED;
-			check_indent(token, indent+1);
+			check_indent(module, token, indent+1);
 			token = parse_code(module, token+1, indent+1, &branch->code);
 		} break;
 
 		case TOKEN_IF: {
 			branch->kind = BRANCH_IF;
-			check_indent(token+1, indent+1);
+			check_indent(module, token+1, indent+1);
 			token = parse_expression(module, token+1, indent+1, true, &branch->cond);
 
 			if (token->kind != TOKEN_COLON)
-				error("Expected ':', not: %\n", arg_token(token));
-			check_indent(token, indent+1);
+				error(module->file, token->pos, "Expected ':', not: %\n", arg_token(token));
+			check_indent(module, token, indent+1);
 
 			token = parse_code(module, token+1, indent+1, &branch->code);
 		} break;
 
 		case TOKEN_WHILE: {
 			branch->kind = BRANCH_WHILE;
-			check_indent(token+1, indent+1);
+			check_indent(module, token+1, indent+1);
 			token = parse_expression(module, token+1, indent+1, true, &branch->cond);
 
 			if (token->kind != TOKEN_COLON)
-				error("Expected ':', not: %\n", arg_token(token));
-			check_indent(token, indent+1);
+				error(module->file, token->pos, "Expected ':', not: %\n", arg_token(token));
+			check_indent(module, token, indent+1);
 
 			token = parse_code(module, token+1, indent+1, &branch->code);
 		} break;
@@ -846,29 +869,29 @@ Token* parse_branch(Module* module, Token* token, Indent16 indent, Branch* branc
 			branch->kind = BRANCH_FOR;
 
 			if (!is_expression_starter(token[1].kind))
-				error("Expected expression not: %\n", arg_token(token+1));
+				error(module->file, token->pos, "Expected expression not: %\n", arg_token(token+1));
 
-			check_indent(token+1, indent+1);
+			check_indent(module, token+1, indent+1);
 			token = parse_expression(module, token+1, indent+1, true, &branch->init);
 
 			if (token->kind != TOKEN_COMMA)
-				error("Expected ',' after initial expression, not: %\n", arg_token(token));
-			check_indent(token, indent+1);
+				error(module->file, token->pos, "Expected ',' after initial expression, not: %\n", arg_token(token));
+			check_indent(module, token, indent+1);
 
 			if (!is_expression_starter(token[1].kind))
-				error("Expected condition expression not: %\n", arg_token(token+1));
+				error(module->file, token->pos, "Expected condition expression not: %\n", arg_token(token+1));
 
-			check_indent(token+1, indent+1);
+			check_indent(module, token+1, indent+1);
 			token = parse_expression(module, token+1, indent+1, true, &branch->cond);
 
 			if (token->kind == TOKEN_COMMA) {
-				check_indent(token+1, indent+1);
+				check_indent(module, token+1, indent+1);
 				token = parse_expression(module, token+1, indent+1, true, &branch->inc);
 			}
 
 			if (token->kind != TOKEN_COLON)
-				error("Expected ':', not: %\n", arg_token(token));
-			check_indent(token, indent+1);
+				error(module->file, token->pos, "Expected ':', not: %\n", arg_token(token));
+			check_indent(module, token, indent+1);
 
 			token = parse_code(module, token+1, indent+1, &branch->code);
 		} break;
@@ -877,13 +900,13 @@ Token* parse_branch(Module* module, Token* token, Indent16 indent, Branch* branc
 			branch->kind = BRANCH_MATCH;
 
 			if (!is_expression_starter(token[1].kind))
-				error("Expected expression not: %\n", arg_token(token+1));
+				error(module->file, token->pos, "Expected expression not: %\n", arg_token(token+1));
 
 			token = parse_expression(module, token+1, indent+1, true, &branch->init);
 
 			if (token->kind != TOKEN_COLON)
-				error("Expected ':', not: %\n", arg_token(token));
-			check_indent(token, indent+1);
+				error(module->file, token->pos, "Expected ':', not: %\n", arg_token(token));
+			check_indent(module, token, indent+1);
 
 			token = parse_match(module, token, indent+1, &branch->match);
 		} break;
@@ -965,7 +988,7 @@ Token* parse_statement(Module* module, Token* token, Indent16 indent, Code* code
 			statement.kind = is_inc ? STATEMENT_INC : STATEMENT_DEC;
 
 			if (!is_expression_starter(token[1].kind) || !is_correct_indent(token+1, indent+1))
-				error(is_inc ? "Expected expression after inc\n" : "Expected expression after dec\n");
+				error(module->file, token->pos, is_inc ? "Expected expression after inc\n" : "Expected expression after dec\n");
 
 			token = parse_expression(module, token+1, indent+1, true, &statement.expr);
 		} break;
@@ -993,7 +1016,7 @@ Token* parse_statement(Module* module, Token* token, Indent16 indent, Code* code
 		GOTO_PARSE_EXPRESSION_STATEMENT:
 		default: {
 			if (!is_expression_starter(token->kind))
-				error("Unexpected token at start of statement: %\n", arg_token(token));
+				error(module->file, token->pos, "Unexpected token at start of statement: %\n", arg_token(token));
 
 			Expression* expr = null;
 			token = parse_expression(module, token, indent+1, false, &expr);
@@ -1019,8 +1042,8 @@ Token* parse_statement(Module* module, Token* token, Indent16 indent, Code* code
 
 			if (statement.kind != STATEMENT_EXPRESSION) {
 				statement.assign.left = expr;
-				check_indent(token,   indent+1);
-				check_indent(token+1, indent+1);
+				check_indent(module, token,   indent+1);
+				check_indent(module, token+1, indent+1);
 				token = parse_expression(module, token+1, indent+1, true, &statement.assign.right);
 			}
 		} break;
@@ -1029,7 +1052,7 @@ Token* parse_statement(Module* module, Token* token, Indent16 indent, Code* code
 	print("Parsed statement: %\n", arg_statement(&statement));
 
 	if (!token->newline && !is_scope_terminator(token->kind))
-		error("Expected ';' after statement, not: %\n", arg_token(token));
+		error(module->file, token->pos, "Expected ';' after statement, not: %\n", arg_token(token));
 
 	if (token->kind == TOKEN_SEMICOLON)
 		token++;
@@ -1050,7 +1073,7 @@ Token* parse_code(Module* module, Token* token, Indent16 indent, Code* code) {
 }
 
 Token* parse_params(Module* module, Function* func, Token* token, Indent16 indent) {
-	check_indent(token, indent);
+	check_indent(module, token, indent);
 	token++;
 
 	if (token->kind != TOKEN_CLOSE_PAREN)
@@ -1058,7 +1081,7 @@ Token* parse_params(Module* module, Function* func, Token* token, Indent16 inden
 		Variable var = { 0 };
 
 		if (token->kind == TOKEN_EOF)
-			error("Missing ')'\n");
+			error(module->file, token->pos, "Missing ')'\n");
 
 		token = parse_variable_declaration(module, token, indent+1, &var);
 		func->params = realloc(func->params, func->param_count*sizeof(Variable), (func->param_count+1)*sizeof(Variable));
@@ -1068,13 +1091,13 @@ Token* parse_params(Module* module, Function* func, Token* token, Indent16 inden
 			break;
 
 		if (token->kind != TOKEN_COMMA)
-			error("Expected ')' or ',', not: %\n", arg_token(token));
+			error(module->file, token->pos, "Expected ')' or ',', not: %\n", arg_token(token));
 
-		check_indent(token, indent);
+		check_indent(module, token, indent);
 		token++;
 	}
 
-	check_indent(token, indent);
+	check_indent(module, token, indent);
 	token++;
 
 	return token;
@@ -1083,19 +1106,19 @@ Token* parse_params(Module* module, Function* func, Token* token, Indent16 inden
 Token* parse_function(Module* module, Token* token, Indent16 indent) {
 	Function func = { 0 };
 
-	check_indent(token, indent);
+	check_indent(module, token, indent);
 	func.name = token++;
 
 	token = parse_params(module, &func, token, indent);
 
 	if (token->kind == TOKEN_ARROW) {
-		check_indent(token, indent);
+		check_indent(module, token, indent);
 		token = parse_expression(module, token+1, indent+1, true, &func.return_type_expr);
 	}
 
 	if (token->kind != TOKEN_COLON)
-		error("Function declaration expected ':', not: %\n", arg_token(token));
-	check_indent(token, indent);
+		error(module->file, token->pos, "Function declaration expected ':', not: %\n", arg_token(token));
+	check_indent(module, token, indent);
 
 	token = parse_code(module, token+1, indent+1, &func.code);
 
@@ -1105,14 +1128,23 @@ Token* parse_function(Module* module, Token* token, Indent16 indent) {
 	return token;
 }
 
-Module* parse_module(TokenStore ts) {
-	if (!ts.count)
-		return null;
+void parse(Module* module) {
+	Token* token = module->tokens;
 
-	Module* module = stack_alloc(sizeof(Module));
-	zero(module, sizeof(Module));
+	// PreAllocate functions
+	module->functions = alloc(sizeof(Function)*module->function_count);
+	zero(module->functions, sizeof(Function)*module->function_count);
+	module->function_count = 0;
 
-	Token* token = ts.tokens;
+	// PreAllocate structs
+	module->structs = alloc(sizeof(Struct)*module->struct_count);
+	zero(module->structs, sizeof(Struct)*module->struct_count);
+	module->struct_count = 0;
+
+	// PreAllocate enums
+	module->enums = alloc(sizeof(Enum)*module->enum_count);
+	zero(module->enums, sizeof(Enum)*module->enum_count);
+	module->enum_count = 0;
 
 	while (token->kind != TOKEN_EOF) {
 		switch (token->kind) {
@@ -1131,33 +1163,27 @@ Module* parse_module(TokenStore ts) {
 				}
 
 				if (token[1].kind == TOKEN_COLON) {
-					error("Variables must start with a lowercase letter or all uppercase (constant).\n");
+					error(module->file, token->pos, "Variables must start with a lowercase letter or all uppercase (constant).\n");
 				}
 
-				error("Function declaration expected '(' after name, not: %\n",
+				error(module->file, token->pos, "Function declaration expected '(' after name, not: %\n",
 					arg_token(token)
 				);
 			} break;
 
 			case TOKEN_STRUCT:
-				module->structs = realloc(module->structs, sizeof(Struct)*(module->struct_count), sizeof(Struct)*(module->struct_count+1));
-				token = ParseStruct(module, token, 0, &module->structs[module->struct_count]);
-				module->struct_count++;
+				token = parse_struct(module, token, 0);
 				break;
 
 			case TOKEN_ENUM:
-				module->enums = realloc(module->enums, sizeof(Enum)*(module->enum_count), sizeof(Enum)*(module->enum_count+1));
-				token = parse_enum(module, token, 0, &module->enums[module->enum_count]);
-				module->enum_count++;
+				token = parse_enum(module, token, 0);
 				break;
 
 			default:
-				error("Unexpected token when parsing global scope: %\n",
+				error(module->file, token->pos, "Unexpected token when parsing global scope: %\n",
 					arg_token(token)
 				);
 		}
 	}
-
-	return module;
 }
 

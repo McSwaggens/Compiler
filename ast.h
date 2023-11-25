@@ -62,14 +62,18 @@ enum ScopeFlags {
 struct Scope {
 	ScopeFlags flags;
 	Scope* parent_scope;
+
 	Variable** variables;
-	u64 variable_count;
+	u32 variable_count;
+	u32 variable_capacity;
 };
 
 struct Code {
 	Scope scope;
+
 	Statement* statements;
-	u64 statement_count;
+	u32 statement_count;
+	u32 statement_capacity;
 };
 
 struct Function {
@@ -271,6 +275,9 @@ struct Module {
 	// @Todo: imports
 
 	Scope scope;
+
+	String file;
+	Token* tokens;
 
 	Function* functions;
 	u64 function_count;

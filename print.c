@@ -88,11 +88,11 @@ void write_string(OutputBuffer* buffer, String string) {
 }
 
 void write_cstring(OutputBuffer* buffer, char* s) {
-	write_string(buffer, get_string(s));
+	write_string(buffer, tostr(s));
 }
 
 void write_bool(OutputBuffer* buffer, bool b) {
-	write_string(buffer, get_string(b ? "true" : "false"));
+	write_string(buffer, tostr(b ? "true" : "false"));
 }
 
 void write_token_kind(OutputBuffer* buffer, TokenKind kind) {
@@ -207,7 +207,7 @@ void write_token_kind(OutputBuffer* buffer, TokenKind kind) {
 		case TOKEN_PIKE_EQUAL:          str = "|="; break;
 	}
 
-	write_string(buffer, get_string(str));
+	write_string(buffer, tostr(str));
 }
 
 void write_token(OutputBuffer* buffer, Token* token) {
@@ -307,7 +307,7 @@ void write_expression_kind(OutputBuffer* buffer, ExpressionKind kind) {
 		case EXPR_TERNARY_IF_ELSE:         str = "EXPR_TERNARY_IF_ELSE";         break;
 	}
 
-	write_string(buffer, get_string(str));
+	write_string(buffer, tostr(str));
 }
 
 void write_expression(OutputBuffer* buffer, Expression* expr) {
@@ -639,9 +639,13 @@ void printbuff(OutputBuffer* buffer, const char* format, ...) {
 	__builtin_va_end(args);
 }
 
-// @Todo: Line and file information
-void error(const char* format, ...) {
-	print("error: ");
+void error(String file, Position pos, const char* format, ...) {
+	print("%:%:%: error: ",
+		arg_string(file),
+		arg_u64(pos.line+1),
+		arg_u64(pos.column+1)
+	);
+
 	__builtin_va_list args;
 	__builtin_va_start(args, format);
 	internal_print(&standard_output_buffer, format, args);

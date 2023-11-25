@@ -1,7 +1,13 @@
 #ifndef LEXER_H
 #define LEXER_H
 
-typedef enum TokenKind {
+typedef enum TokenKind TokenKind;
+typedef union TokenAuxilaryInfo TokenAuxilaryInfo;
+typedef struct Token Token;
+typedef struct Position Position;
+typedef u16 Indent16;
+
+enum TokenKind {
 	TOKEN_EOF = 0,
 
 	TOKEN_IDENTIFIER_VARIABLE,
@@ -106,34 +112,34 @@ typedef enum TokenKind {
 	TOKEN_CARET_EQUAL,
 	TOKEN_TILDA_EQUAL,
 	TOKEN_PIKE_EQUAL,
+};
 
-
-} TokenKind;
-
-typedef union TokenAuxilaryInfo {
+union TokenAuxilaryInfo {
 	s64 i;
 	float32 f32;
 	float64 f64;
 	String string;
 	String identifier;
-} TokenAuxilaryInfo;
+};
 
-typedef u16 Indent16;
+struct Position {
+	u64 line;
+	u64 column;
+};
 
-typedef struct Token {
+// @Todo: SOA tokens
+struct Token {
 	TokenKind kind;
-	TypeID type;
 	Indent16 indent;
+
+	// @Todo turn bools into flags
 	bool newline;
 	bool lspace;
 	bool rspace;
-	TokenAuxilaryInfo aux;
-} Token;
 
-typedef struct TokenStore {
-	Token* tokens;
-	u64 count;
-} TokenStore;
+	Position pos;
+	TokenAuxilaryInfo aux;
+};
 
 #endif // LEXER_H
 

@@ -6,7 +6,7 @@ void* alloc_virtual_page(u64 size) {
 	void* page = (void*)system_call(
 		LINUX_SYSCALL_MMAP,
 		0,
-		size,
+		(size+4095) & -4096, // Raise to page size
 		LINUX_MMAP_PROTECTION_READ | LINUX_MMAP_PROTECTION_WRITE,
 		0x22,
 		-1,
@@ -60,23 +60,28 @@ struct GlobalAllocator {
 	GlobalAllocator_Pool pools[64];
 } static global_allocator;
 
+static
 GlobalAllocator_Pool* ga_get_pool(u64 pool_index) {
 	return &global_allocator.pools[pool_index];
 }
 
+static
 bool ga_is_populated(u64 pool_index) {
 	return (global_allocator.plot >> pool_index) & 1;
 }
 
+static
 void ga_mark_empty(u64 pool_index) {
 	global_allocator.plot &= ~(1llu << pool_index);
 	// print("  % marked empty\n", arg_u64(pool_index));
 }
 
+static
 void ga_mark_populated(u64 pool_index) {
 	global_allocator.plot |= (1llu << pool_index);
 }
 
+static
 void ga_do_empty_check(u64 pool_index) {
 	GlobalAllocator_Pool* pool = ga_get_pool(pool_index);
 
@@ -84,32 +89,39 @@ void ga_do_empty_check(u64 pool_index) {
 		ga_mark_empty(pool_index);
 }
 
+static
 void ga_set_stack(u64 pool_index, void* p, u64 size) {
 	GlobalAllocator_Pool* pool = ga_get_pool(pool_index);
 	pool->shead = p;
 	pool->stail = p + size;
 }
 
+static
 void ga_set_stack_and_mark(u64 pool_index, void* p, u64 size) {
 	ga_set_stack(pool_index, p, size);
 	ga_mark_populated(pool_index);
 }
+
+static
 void ga_insert(u64 pool_index, void* p) {
 	GlobalAllocator_Pool* pool = ga_get_pool(pool_index);
 	*(void**)p = pool->ll_head;
 	pool->ll_head = p;
 }
 
+static
 void ga_mark_and_insert(u64 pool_index, void* p) {
 	ga_insert(pool_index, p);
 	ga_mark_populated(pool_index);
 }
 
+static
 u64 ga_get_next_best_pool(u64 pool_index) {
 	// &63 is to crash 64 to 0
 	return count_trailing_zeroes64(global_allocator.plot & (-2llu<<pool_index)) & 63;
 }
 
+static
 void* ga_take(u64 pool_index) {
 	// print("ga_take(%)\n", arg_u64(pool_index));
 
@@ -135,6 +147,7 @@ void* ga_take(u64 pool_index) {
 	return result;
 }
 
+static
 void ga_splat(u64 top_index, u64 bottom_index) {
 	assert(top_index != bottom_index);
 	assert(top_index > bottom_index);
@@ -165,15 +178,18 @@ void ga_splat(u64 top_index, u64 bottom_index) {
 	ga_set_stack_and_mark(original_bottom_index, p, size);
 }
 
+static
 u64 ga_correct_size(u64 size) {
 	return size ? round_pow2((size+7)&-8) : 0;
 }
 
+static
 u64 ga_size_to_index(u64 size) {
 	assert(is_pow2(size));
 	return count_trailing_zeroes64(size);
 }
 
+static
 void init_global_allocator(void) {
 	zero(&global_allocator, sizeof(struct GlobalAllocator));
 }

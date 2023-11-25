@@ -109,9 +109,12 @@ static inline s64 round_to_nearest_mulpow2(s64 n, u64 pow2) {
 
 // ------------------------------------ //
 
+#define FILE __FILE__
+#define LINE __LINE__
+#define COLUMN __builtin_COLUMN()
 #define debug_break() __builtin_trap()
 #define unreachable() __builtin_unreachable()
-#define assert_unreachable() { error("Unreachable code reached.\n"); debug_break(); }
+#define assert_unreachable() { error(tostr(FILE), (Position){ 0, 0 }, "Unreachable code reached.\n"); debug_break(); }
 
 // ------------------------------------ //
 
@@ -122,18 +125,13 @@ typedef struct String {
 
 // ------------------------------------ //
 
-typedef struct Stack {
-	byte* head;
-	byte* tail;
-} Stack;
-
 extern s64 system_call(s64 rax, s64 rsi, s64 rdi, s64 rdx, s64 r10, s64 r8, s64 r9);
 extern u64 read_timestamp_counter(void);
 
 // ------------------------------------ //
 
 u64 count_cstring(const char* s);
-static inline String get_string(char* s) { return (String){ s, count_cstring(s) }; }
+static inline String tostr(char* s) { return (String){ s, count_cstring(s) }; }
 
 // ------------------------------------ //
 

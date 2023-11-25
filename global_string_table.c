@@ -47,7 +47,7 @@ static char* gst_lookup(char* s, u64 length) {
 		// 	arg_string((String){ s, length }),
 		// 	arg_u64(length)
 		// );
-		return (char*)ascii_string+*s;
+		return (char*)ascii_string + *s;
 	}
 
 	GlobalStringTable_CharWise* cw = &global_string_table.charwise[*s];

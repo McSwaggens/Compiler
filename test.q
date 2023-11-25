@@ -1,3 +1,9 @@
-Test(x: int, y: int):
-	c : int = x * y+1
+
+struct Foo:
+	a : int
+	b : int
+
+Test(x : int, y : int) -> int:
+	z := x + y
+	return z
 

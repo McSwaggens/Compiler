@@ -1,13 +1,11 @@
 #include "semantic.h"
 #include "ast.h"
 
-Module* current_module;
-
-void scan_assignment(Statement* statement, Scope* scope) {
+void scan_assignment(Module* module, Statement* statement, Scope* scope) {
 	Assignment* assign = &statement->assign;
 
-	scan_expression(assign->left, scope);
-	scan_expression(assign->right, scope);
+	scan_expression(module, assign->left, scope);
+	scan_expression(module, assign->right, scope);
 
 	switch (statement->kind) {
 		default: assert_unreachable();
@@ -26,26 +24,26 @@ void scan_assignment(Statement* statement, Scope* scope) {
 	}
 }
 
-void scan_match(Match* match, Scope* scope) {
+void scan_match(Module* module, Match* match, Scope* scope) {
 }
 
-void scan_branch(Branch* branch, Scope* scope) {
-	if (branch->init) scan_expression(branch->init, scope);
-	if (branch->cond) scan_expression(branch->cond, scope);
-	if (branch->inc)  scan_expression(branch->inc, scope);
-	scan_code(&branch->code);
+void scan_branch(Module* module, Branch* branch, Scope* scope) {
+	if (branch->init) scan_expression(module, branch->init, scope);
+	if (branch->cond) scan_expression(module, branch->cond, scope);
+	if (branch->inc)  scan_expression(module, branch->inc, scope);
+	scan_code(module, &branch->code);
 }
 
-void scan_controlflow(ControlFlow* controlflow, Scope* scope) {
+void scan_controlflow(Module* module, ControlFlow* controlflow, Scope* scope) {
 	for (u64 i = 0; i < controlflow->branch_count; i++) {
 		Branch* branch = &controlflow->branches[i];
-		scan_branch(branch, scope);
+		scan_branch(module, branch, scope);
 	}
 }
 
-Function* find_function(char* name) {
-	for (u64 i = 0; i < current_module->function_count; i++) {
-		Function* func = &current_module->functions[i];
+Function* find_function(Module* module, char* name) {
+	for (u64 i = 0; i < module->function_count; i++) {
+		Function* func = &module->functions[i];
 
 		if (func->name->aux.string.data != name)
 			continue;
@@ -75,7 +73,7 @@ Variable* find_variable(Scope* scope, char* name) {
 	return null;
 }
 
-void scan_identifier(Expression* expr, Scope* scope) {
+void scan_identifier(Module* module, Expression* expr, Scope* scope) {
 	Token* ident = expr->token;
 	bool isconst = ident->kind != TOKEN_IDENTIFIER_VARIABLE;
 	Variable* var = find_variable(scope, ident->aux.identifier.data);
@@ -84,18 +82,20 @@ void scan_identifier(Expression* expr, Scope* scope) {
 		expr->flags |= EXPR_FLAG_CONSTANT;
 
 	if (!var && isconst)
-		error("Constant '%' not defined.\n", arg_token(ident));
+		error(module->file, expr->begin->pos,
+			"Constant '%' not defined.\n", arg_token(ident));
 
 	if (!var && !isconst)
-		error("Variable '%' wasn't declared.\n", arg_token(ident));
+		error(module->file, expr->begin->pos,
+			"Variable '%' wasn't declared.\n", arg_token(ident));
 
 	expr->var = var;
 }
 
-void scan_call(Expression* expr, Scope* scope) {
+void scan_call(Module* module, Expression* expr, Scope* scope) {
 }
 
-void scan_expression(Expression* expr, Scope* scope) {
+void scan_expression(Module* module, Expression* expr, Scope* scope) {
 	switch (expr->kind) {
 		case EXPR_NULL:
 		case EXPR_TRUE:
@@ -113,7 +113,7 @@ void scan_expression(Expression* expr, Scope* scope) {
 
 		case EXPR_IDENTIFIER_CONSTANT:
 		case EXPR_IDENTIFIER_VARIABLE: {
-			scan_identifier(expr, scope);
+			scan_identifier(module, expr, scope);
 		} break;
 
 		case EXPR_IDENTIFIER_FORMAL: {
@@ -151,8 +151,8 @@ void scan_expression(Expression* expr, Scope* scope) {
 		case EXPR_BINARY_BIT_OR:
 		case EXPR_BINARY_LSHIFT:
 		case EXPR_BINARY_RSHIFT:
-			scan_expression(expr->left,  scope);
-			scan_expression(expr->right, scope);
+			scan_expression(module, expr->left,  scope);
+			scan_expression(module, expr->right, scope);
 		} break;
 
 		case EXPR_BINARY_OR:
@@ -173,7 +173,7 @@ void scan_expression(Expression* expr, Scope* scope) {
 			print("unhandled\n");
 			break;
 
-		case EXPR_CALL: scan_call(expr, scope); break;
+		case EXPR_CALL: scan_call(module, expr, scope); break;
 		case EXPR_INDEX:
 
 		case EXPR_TERNARY_IF_ELSE:
@@ -182,15 +182,20 @@ void scan_expression(Expression* expr, Scope* scope) {
 	}
 }
 
-void scan_vardecl(Variable* var, Scope* scope) {
-	scan_expression(var->type_expr, scope);
-	scan_expression(var->init_expr, scope);
+void scan_vardecl(Module* module, Variable* var, Scope* scope) {
+	assert(var->type_expr || var->init_expr);
+
+	if (var->type_expr)
+		scan_expression(module, var->type_expr, scope);
+
+	if (var->init_expr)
+		scan_expression(module, var->init_expr, scope);
 }
 
-void scan_statement(Statement* statement, Code* code) {
+void scan_statement(Module* module, Statement* statement, Code* code) {
 	switch (statement->kind) {
 		case STATEMENT_ASSIGNMENT: {
-			scan_assignment(statement, &code->scope);
+			scan_assignment(module, statement, &code->scope);
 		} break;
 
 		case STATEMENT_ASSIGNMENT_LSH:
@@ -203,23 +208,25 @@ void scan_statement(Statement* statement, Code* code) {
 		case STATEMENT_ASSIGNMENT_BIT_XOR:
 		case STATEMENT_ASSIGNMENT_BIT_AND:
 		case STATEMENT_ASSIGNMENT_BIT_OR: {
-			scan_assignment(statement, &code->scope);
+			scan_assignment(module, statement, &code->scope);
 		} break;
 
 		case STATEMENT_EXPRESSION: {
-			scan_expression(statement->expr, &code->scope);
+			scan_expression(module, statement->expr, &code->scope);
 		} break;
 
 		case STATEMENT_CONTROLFLOW: {
-			scan_controlflow(&statement->controlflow, &code->scope);
+			scan_controlflow(module, &statement->controlflow, &code->scope);
 		} break;
 
 		case STATEMENT_VARDECL: {
-			scan_vardecl(statement->var, &code->scope);
+			scan_vardecl(module, statement->var, &code->scope);
 		} break;
 
 		case STATEMENT_RETURN: {
-			scan_expression(statement->ret.expr, &code->scope);
+			if (statement->ret.expr) {
+				scan_expression(module, statement->ret.expr, &code->scope);
+			}
 		} break;
 
 		case STATEMENT_BREAK: {
@@ -230,42 +237,42 @@ void scan_statement(Statement* statement, Code* code) {
 
 		case STATEMENT_INC:
 		case STATEMENT_DEC: {
-			scan_expression(statement->expr, &code->scope);
+			scan_expression(module, statement->expr, &code->scope);
 		} break;
 	}
 }
 
-void scan_code(Code* code) {
-	scan_scope(&code->scope);
+void scan_code(Module* module, Code* code) {
+	scan_scope(module, &code->scope);
 
 	for (u64 i = 0; i < code->statement_count; i++) {
 		Statement* statement = &code->statements[i];
-		scan_statement(statement, code);
+		scan_statement(module, statement, code);
 	}
 }
 
-void scan_scope(Scope* scope) {
+void scan_scope(Module* module, Scope* scope) {
 	for (u64 i = 0; i < scope->variable_count; i++) {
 		Variable* var = scope->variables[i];
 	}
 }
 
-void scan_function(Function* func) {
+void scan_function(Module* module, Function* func) {
 	for (u32 i = 0; i < func->param_count; i++) {
 		Variable* var = &func->params[i];
 		scope_push_var(&func->code.scope, var);
 	}
 
-	scan_code(&func->code);
+	scan_code(module, &func->code);
 }
 
 void scan_module(Module* module) {
-	current_module = module;
-	scan_scope(&module->scope);
+	module = module;
+	scan_scope(module, &module->scope);
 
 	for (u64 i = 0; i < module->function_count; i++) {
 		Function* func = &module->functions[i];
-		scan_function(func);
+		scan_function(module, func);
 	}
 }
 

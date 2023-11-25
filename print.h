@@ -8,7 +8,7 @@
 
 void printbuff(OutputBuffer* buffer, const char* format, ...);
 void print(const char* format, ...);
-void error(const char* format, ...);
+void error(String file, Position position, const char* format, ...);
 
 typedef enum FormatArgumentKind {
 	PRINT_ARG_BOOL,
@@ -65,6 +65,7 @@ typedef struct FormatArg {
 	};
 } FormatArg;
 
+// Use _Generic from C11?
 FormatArg arg_bool(bool v)                                 { return (FormatArg){ PRINT_ARG_BOOL,            .b              = v }; }
 FormatArg arg_s8(s8 v)                                     { return (FormatArg){ PRINT_ARG_INT8,            .s8             = v }; }
 FormatArg arg_s16(s16 v)                                   { return (FormatArg){ PRINT_ARG_INT16,           .s16            = v }; }

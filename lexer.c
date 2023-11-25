@@ -1,44 +1,42 @@
 #include "global_string_table.h"
 
-TokenStore create_token_store(u64 size) {
-	TokenStore store = { 0 };
-
-	store.tokens = (Token*)alloc_virtual_page(size * sizeof(Token));
-	store.count = 0;
-
-	return store;
-}
+typedef struct TokenStore {
+	Token* tokens;
+	u64 count;
+} TokenStore;
 
 typedef struct Lexer {
 	char* cursor;
+	Token* token;
 	char* end;
+	char* line_begin;
 	u64 line;
 	u64 indent;
 	bool newline;
 	bool spaced;
 	TokenStore store;
+	String file;
+	Module* module;
 } Lexer;
 
-void token_store_push(Lexer* lexer, Token token) {
+void push_token_aux(Lexer* lexer, TokenKind kind, u64 length, Position pos, TokenAuxilaryInfo aux) {
+	Token token = {
+		.kind    = kind,
+		.lspace  = lexer->spaced,
+		.indent  = lexer->indent,
+		.newline = lexer->newline,
+		.pos     = pos,
+		.aux     = aux,
+	};
+
+	lexer->cursor += length;
+
 	lexer->store.tokens[lexer->store.count] = token;
 	lexer->store.count += 1;
 }
 
-void push_token_aux(Lexer* lexer, TokenKind kind, u64 length, TokenAuxilaryInfo aux) {
-	Token token = {
-		.kind    = kind,
-		.lspace = lexer->spaced,
-		.indent  = lexer->indent,
-		.newline = lexer->newline,
-		.aux = aux,
-	};
-
-	lexer->cursor += length;
-	token_store_push(lexer, token);
-}
-
-void push_token(Lexer* lexer, TokenKind kind, u64 length) {
-	push_token_aux(lexer, kind, length, (TokenAuxilaryInfo){ 0 });
+void push_token(Lexer* lexer, TokenKind kind, u64 length, Position pos) {
+	push_token_aux(lexer, kind, length, pos, (TokenAuxilaryInfo){ 0 });
 }
 
 typedef enum Base {
@@ -375,7 +373,7 @@ String base_to_string(Base base) {
 		[BASE_HEXADECIMAL] = "BASE_HEXADECIMAL",
 	};
 
-	return get_string(lut[base]);
+	return tostr(lut[base]);
 }
 
 String format_to_string(LiteralFormat format) {
@@ -386,7 +384,7 @@ String format_to_string(LiteralFormat format) {
 		[LITERAL_FORMAT_UNSIGNED_INTEGER] = "LITERAL_FORMAT_UNSIGNED_INTEGER",
 	};
 
-	return get_string(lut[format]);
+	return tostr(lut[format]);
 }
 
 void print_qualifier(LiteralQualifier qualifier) {
@@ -405,9 +403,17 @@ void print_component(LiteralComponent comp) {
 	print_qualifier(comp.qualifier);
 }
 
+Position make_pos(Lexer* lexer, char* p) {
+	return (Position) {
+		.line = lexer->line,
+		.column = p-lexer->line_begin
+	};
+}
+
 void parse_literal(Lexer* lexer) {
 	char* p = lexer->cursor;
 	char* begin = p;
+	Position pos = make_pos(lexer, begin);
 
 	LiteralQualifier qualifier = { 0 };
 	LiteralComponent whole = { 0 };
@@ -447,16 +453,16 @@ void parse_literal(Lexer* lexer) {
 			bits = 64;
 
 		if (format == LITERAL_FORMAT_FLOAT && bits < 32)
-			error("Float qualifier with invalid size: %. Valid sizes are 32 and 64.\n", arg_u64(bits));
+			error(lexer->file, pos, "Float qualifier with invalid size: %. Valid sizes are 32 and 64.\n", arg_u64(bits));
 
 		if (base == BASE_HEXADECIMAL && qualifier.base != BASE_HEXADECIMAL)
-			error("Hexadecimal with wrong base qualifier\n");
+			error(lexer->file, pos, "Hexadecimal with wrong base qualifier\n");
 
 		if (base == BASE_DECIMAL && qualifier.base == BASE_BINARY)
-			error("Binary literal with decimal digits.\n");
+			error(lexer->file, pos, "Binary literal with decimal digits.\n");
 
 		if (has_fract && qualifier.format != LITERAL_FORMAT_UNSPECIFIED && qualifier.format != LITERAL_FORMAT_FLOAT)
-			error("Invalid format qualifier for literal with fractional component. Expected 'f' format qualifier.\n");
+			error(lexer->file, pos, "Invalid format qualifier for literal with fractional component. Expected 'f' format qualifier.\n");
 
 		base = qualifier.base;
 	}
@@ -465,7 +471,7 @@ void parse_literal(Lexer* lexer) {
 			base = BASE_DECIMAL;
 
 		if (base == BASE_HEXADECIMAL)
-			error("Hexadecimal missing 'h' qualifier\n");
+			error(lexer->file, pos, "Hexadecimal missing 'h' qualifier\n");
 	}
 
 	if (!bits)
@@ -486,9 +492,9 @@ void parse_literal(Lexer* lexer) {
 		value *= 1024;
 
 		if (kind == TOKEN_LITERAL_FLOAT32)
-			push_token_aux(lexer, kind, full_length, (TokenAuxilaryInfo){ .f32 = (float32)value });
+			push_token_aux(lexer, kind, full_length, pos, (TokenAuxilaryInfo){ .f32 = (float32)value });
 		else if (kind == TOKEN_LITERAL_FLOAT64)
-			push_token_aux(lexer, kind, full_length, (TokenAuxilaryInfo){ .f64 = value });
+			push_token_aux(lexer, kind, full_length, pos, (TokenAuxilaryInfo){ .f64 = value });
 	}
 	else {
 		bool sign = format == LITERAL_FORMAT_SIGNED_INTEGER;
@@ -504,10 +510,10 @@ void parse_literal(Lexer* lexer) {
 		s64 value = decode_int(whole, base);
 
 		if (boi(value) + qualifier.scalar > bits)
-			error("Scalar qualifier overflows %bit seger\n", arg_u64(bits));
+			error(lexer->file, pos, "Scalar qualifier overflows %bit seger\n", arg_u64(bits));
 
 		value <<= qualifier.scalar;
-		push_token_aux(lexer, kind, full_length, (TokenAuxilaryInfo){ .i = value });
+		push_token_aux(lexer, kind, full_length, pos, (TokenAuxilaryInfo){ .i = value });
 	}
 
 	String str = (String){ begin, p-begin };
@@ -524,8 +530,13 @@ void parse_literal(Lexer* lexer) {
 	// }
 	// print("\n");
 
-	if (is_alpha(*p) || *p == '_')
-		error("Unexpected character after literal %: '%'", arg_string(str), arg_char(*p));
+	if (is_alpha(*p) || *p == '_') {
+		error(
+			lexer->file, pos,
+			"Unexpected character after literal %: '%'",
+			arg_string(str), arg_char(*p)
+		);
+	}
 }
 
 bool test_if_hex(char* p) {
@@ -554,40 +565,42 @@ bool test_if_hex(char* p) {
 
 void parse_identifier(Lexer* lexer) {
 	char* begin = lexer->cursor;
-	bool begins_with_upper = is_upper(*lexer->cursor);
-	char* p = lexer->cursor;
+	bool begins_with_upper = is_upper(*begin);
+	Position pos = make_pos(lexer, begin);
+	char* p = begin;
 
 	enum {
-		IDFLAG_DIGIT = 1,
-		IDFLAG_LOWER = 2,
-		IDFLAG_UPPER = 4,
-		IDFLAG_UNDER = 8,
+		CFLAG_DIGIT = 1,
+		CFLAG_LOWER = 2,
+		CFLAG_UPPER = 4,
+		CFLAG_UNDER = 8,
 	};
 
+	// Need to use a lut here because '_' is uppercase in ascii :(
 	static const s8 lut[256] = {
-		['0'] = IDFLAG_DIGIT, ['1'] = IDFLAG_DIGIT, ['2'] = IDFLAG_DIGIT, ['3'] = IDFLAG_DIGIT, ['4'] = IDFLAG_DIGIT,
-		['5'] = IDFLAG_DIGIT, ['6'] = IDFLAG_DIGIT, ['7'] = IDFLAG_DIGIT, ['8'] = IDFLAG_DIGIT, ['9'] = IDFLAG_DIGIT,
+		['0'] = CFLAG_DIGIT, ['1'] = CFLAG_DIGIT, ['2'] = CFLAG_DIGIT, ['3'] = CFLAG_DIGIT, ['4'] = CFLAG_DIGIT,
+		['5'] = CFLAG_DIGIT, ['6'] = CFLAG_DIGIT, ['7'] = CFLAG_DIGIT, ['8'] = CFLAG_DIGIT, ['9'] = CFLAG_DIGIT,
 
-		['a'] = IDFLAG_LOWER, ['b'] = IDFLAG_LOWER, ['c'] = IDFLAG_LOWER, ['d'] = IDFLAG_LOWER, ['e'] = IDFLAG_LOWER, ['f'] = IDFLAG_LOWER,
-		['g'] = IDFLAG_LOWER, ['h'] = IDFLAG_LOWER, ['i'] = IDFLAG_LOWER, ['j'] = IDFLAG_LOWER, ['k'] = IDFLAG_LOWER, ['l'] = IDFLAG_LOWER,
-		['m'] = IDFLAG_LOWER, ['n'] = IDFLAG_LOWER, ['o'] = IDFLAG_LOWER, ['p'] = IDFLAG_LOWER, ['q'] = IDFLAG_LOWER, ['r'] = IDFLAG_LOWER,
-		['s'] = IDFLAG_LOWER, ['t'] = IDFLAG_LOWER, ['u'] = IDFLAG_LOWER, ['v'] = IDFLAG_LOWER, ['w'] = IDFLAG_LOWER, ['x'] = IDFLAG_LOWER,
-		['y'] = IDFLAG_LOWER, ['z'] = IDFLAG_LOWER,
+		['a'] = CFLAG_LOWER, ['b'] = CFLAG_LOWER, ['c'] = CFLAG_LOWER, ['d'] = CFLAG_LOWER, ['e'] = CFLAG_LOWER, ['f'] = CFLAG_LOWER,
+		['g'] = CFLAG_LOWER, ['h'] = CFLAG_LOWER, ['i'] = CFLAG_LOWER, ['j'] = CFLAG_LOWER, ['k'] = CFLAG_LOWER, ['l'] = CFLAG_LOWER,
+		['m'] = CFLAG_LOWER, ['n'] = CFLAG_LOWER, ['o'] = CFLAG_LOWER, ['p'] = CFLAG_LOWER, ['q'] = CFLAG_LOWER, ['r'] = CFLAG_LOWER,
+		['s'] = CFLAG_LOWER, ['t'] = CFLAG_LOWER, ['u'] = CFLAG_LOWER, ['v'] = CFLAG_LOWER, ['w'] = CFLAG_LOWER, ['x'] = CFLAG_LOWER,
+		['y'] = CFLAG_LOWER, ['z'] = CFLAG_LOWER,
 
-		['A'] = IDFLAG_UPPER, ['B'] = IDFLAG_UPPER, ['C'] = IDFLAG_UPPER, ['D'] = IDFLAG_UPPER, ['E'] = IDFLAG_UPPER, ['F'] = IDFLAG_UPPER,
-		['G'] = IDFLAG_UPPER, ['H'] = IDFLAG_UPPER, ['I'] = IDFLAG_UPPER, ['J'] = IDFLAG_UPPER, ['K'] = IDFLAG_UPPER, ['L'] = IDFLAG_UPPER,
-		['M'] = IDFLAG_UPPER, ['N'] = IDFLAG_UPPER, ['O'] = IDFLAG_UPPER, ['P'] = IDFLAG_UPPER, ['Q'] = IDFLAG_UPPER, ['R'] = IDFLAG_UPPER,
-		['S'] = IDFLAG_UPPER, ['T'] = IDFLAG_UPPER, ['U'] = IDFLAG_UPPER, ['V'] = IDFLAG_UPPER, ['W'] = IDFLAG_UPPER, ['X'] = IDFLAG_UPPER,
-		['Y'] = IDFLAG_UPPER, ['Z'] = IDFLAG_UPPER,
+		['A'] = CFLAG_UPPER, ['B'] = CFLAG_UPPER, ['C'] = CFLAG_UPPER, ['D'] = CFLAG_UPPER, ['E'] = CFLAG_UPPER, ['F'] = CFLAG_UPPER,
+		['G'] = CFLAG_UPPER, ['H'] = CFLAG_UPPER, ['I'] = CFLAG_UPPER, ['J'] = CFLAG_UPPER, ['K'] = CFLAG_UPPER, ['L'] = CFLAG_UPPER,
+		['M'] = CFLAG_UPPER, ['N'] = CFLAG_UPPER, ['O'] = CFLAG_UPPER, ['P'] = CFLAG_UPPER, ['Q'] = CFLAG_UPPER, ['R'] = CFLAG_UPPER,
+		['S'] = CFLAG_UPPER, ['T'] = CFLAG_UPPER, ['U'] = CFLAG_UPPER, ['V'] = CFLAG_UPPER, ['W'] = CFLAG_UPPER, ['X'] = CFLAG_UPPER,
+		['Y'] = CFLAG_UPPER, ['Z'] = CFLAG_UPPER,
 
-		['_'] = IDFLAG_UNDER,
+		['_'] = CFLAG_UNDER,
 	};
 
 	s8 mask = 0;
 	while (lut[*p])
 		mask |= lut[*p++];
 
-	bool contains_lower = (mask & IDFLAG_LOWER);
+	bool contains_lower = (mask & CFLAG_LOWER);
 	TokenKind kind = TOKEN_IDENTIFIER_VARIABLE;
 	u64 length = p - begin;
 
@@ -596,11 +609,17 @@ void parse_identifier(Lexer* lexer) {
 
 	char* s = gst_lookup(begin, length);
 
-	push_token_aux(lexer, kind, length, (TokenAuxilaryInfo){ .string = (String){ s, length }});
+	if (kind == TOKEN_IDENTIFIER_FORMAL) {
+		lexer->module->function_count++; // approx
+	}
+
+	push_token_aux(lexer, kind, length, pos, (TokenAuxilaryInfo){ .string = (String){ s, length }});
 }
 
 bool test_keyword(Lexer* lexer, const char* keyword, TokenKind kind) {
 	u64 length = count_cstring(keyword);
+	char* begin = lexer->cursor;
+	Position pos = make_pos(lexer, begin);
 
 	if (!compare(lexer->cursor, keyword, length))
 		return false;
@@ -609,7 +628,7 @@ bool test_keyword(Lexer* lexer, const char* keyword, TokenKind kind) {
 	if (is_alpha(c) || is_digit(c) || c == '_')
 		return false;
 
-	push_token(lexer, kind, length);
+	push_token(lexer, kind, length, pos);
 
 	return true;
 }
@@ -618,6 +637,7 @@ void parse_string(Lexer* lexer) {
 	char* begin = lexer->cursor;
 	char* p = begin+1;
 	s64 subs = 0;
+	Position pos = make_pos(lexer, begin);
 
 	for (; p < lexer->end && *p != '"'; p++) {
 		if (*p != '\\')
@@ -647,10 +667,11 @@ void parse_string(Lexer* lexer) {
 	u64 result_numchars = input_numchars-subs;
 
 	if (p == lexer->end)
-		error("String not terminated.\n");
+		error(lexer->file, pos, "String not terminated.\n");
 
 	TokenAuxilaryInfo value = { .string = (String){ .data = begin+1, .length = result_numchars } };
 
+	// @todo @bug: Handle multiline strings
 	if (subs) {
 		char* s = alloc(result_numchars);
 		char* p = begin+1;
@@ -682,7 +703,7 @@ void parse_string(Lexer* lexer) {
 		};
 	}
 
-	push_token_aux(lexer, TOKEN_LITERAL_STRING, p-begin+1, value);
+	push_token_aux(lexer, TOKEN_LITERAL_STRING, p-begin+1, pos, value);
 }
 
 bool is_whitespace(char c) {
@@ -706,16 +727,15 @@ void skip_whitespace(Lexer* lexer) {
 	while (is_whitespace(*p) || compare(p, "//", 2)) {
 		if (*p == '\n') {
 			lexer->newline = true;
-			for (p++, lexer->line++, lexer->indent = 0; *p == '\t'; lexer->indent++, p++);
-			continue;
-		}
+			lexer->line_begin = p+1;
+			lexer->line++;
 
-		if (compare(p, "//", 2)) {
+			for (p++, lexer->indent = 0; *p == '\t'; lexer->indent++, p++);
+		}
+		else if (compare(p, "//", 2)) {
 			for (p += 2; p < lexer->end && *p != '\n'; p++);
-			continue;
 		}
-
-		p++;
+		else p++;
 	}
 
 
@@ -727,13 +747,13 @@ void skip_whitespace(Lexer* lexer) {
 	lexer->cursor = p;
 }
 
-TokenStore generate_tokens(String file_path) {
-	FileHandle32 file_handle = open_file(file_path, FILE_MODE_OPEN, FILE_ACCESS_FLAG_READ);
+void lex(Module* module) {
+	FileHandle32 file_handle = open_file(module->file, FILE_MODE_OPEN, FILE_ACCESS_FLAG_READ);
 	FileData file = load_file(file_handle, 16);
 	close_file(file_handle);
 
 	print("Lexing file \"%\":\n\n%\n",
-		arg_string(file_path),
+		arg_string(module->file),
 		arg_string((String){ file.data, file.size })
 	);
 
@@ -742,12 +762,23 @@ TokenStore generate_tokens(String file_path) {
 	Lexer lexer = { 
 		.cursor = file.data,
 		.end    = file.data + file.size,
-		.store  = create_token_store(file.size + 1),
+		.store  = {
+			.tokens = (Token*)alloc_virtual_page((file.size + 1) * sizeof(Token)),
+			.count = 0,
+		},
 		.newline = true,
 		.indent = 0,
+		.line = 0,
+		.line_begin = file.data,
+		.file = module->file,
+		.module = module,
 	};
 
+	module->tokens = lexer.store.tokens;
+
 	while (*lexer.cursor == '\t') lexer.cursor++, lexer.indent++;
+
+	Position pos = make_pos(&lexer, lexer.cursor);
 
 	while (lexer.cursor < lexer.end) {
 		skip_whitespace(&lexer);
@@ -756,20 +787,6 @@ TokenStore generate_tokens(String file_path) {
 
 		switch (*lexer.cursor) {
 			TokenKind kind;
-
-			case 'f': {
-				if (test_keyword(&lexer, "for",     TOKEN_FOR))     break;
-				if (test_keyword(&lexer, "false",   TOKEN_FALSE))   break;
-				if (test_keyword(&lexer, "float32", TOKEN_FLOAT32)) break;
-				if (test_keyword(&lexer, "float64", TOKEN_FLOAT64)) break;
-				goto GOTO_LEXER_COULD_BE_HEXADECIMAL_OR_IDENTIFIER;
-			}
-
-			case 'e': {
-				if (test_keyword(&lexer, "else",    TOKEN_ELSE)) break;
-				if (test_keyword(&lexer, "enum",    TOKEN_ENUM)) break;
-				goto GOTO_LEXER_COULD_BE_HEXADECIMAL_OR_IDENTIFIER;
-			}
 
 			case 'a': {
 				goto GOTO_LEXER_COULD_BE_HEXADECIMAL_OR_IDENTIFIER;
@@ -782,37 +799,42 @@ TokenStore generate_tokens(String file_path) {
 				goto GOTO_LEXER_COULD_BE_HEXADECIMAL_OR_IDENTIFIER;
 			}
 
-			case 'd': {
-				if (test_keyword(&lexer, "dec",    TOKEN_DEC))  break;
-				goto GOTO_LEXER_COULD_BE_HEXADECIMAL_OR_IDENTIFIER;
-			}
-
 			case 'c': {
 				if (test_keyword(&lexer, "continue",    TOKEN_CONTINUE))  break;
 				goto GOTO_LEXER_COULD_BE_HEXADECIMAL_OR_IDENTIFIER;
 			}
 
-			case 'A':
-			case 'B':
-			case 'C':
-			case 'D':
-			case 'E':
-			case 'F':
+			case 'd': {
+				if (test_keyword(&lexer, "dec",    TOKEN_DEC))  break;
+				goto GOTO_LEXER_COULD_BE_HEXADECIMAL_OR_IDENTIFIER;
+			}
+
+			case 'e': {
+				if (test_keyword(&lexer, "else",    TOKEN_ELSE)) break;
+				if (test_keyword(&lexer, "enum",    TOKEN_ENUM)) {
+					module->enum_count++;
+					break;
+				}
+				goto GOTO_LEXER_COULD_BE_HEXADECIMAL_OR_IDENTIFIER;
+			}
+
+			case 'f': {
+				if (test_keyword(&lexer, "for",     TOKEN_FOR))     break;
+				if (test_keyword(&lexer, "false",   TOKEN_FALSE))   break;
+				if (test_keyword(&lexer, "float32", TOKEN_FLOAT32)) break;
+				if (test_keyword(&lexer, "float64", TOKEN_FLOAT64)) break;
+				goto GOTO_LEXER_COULD_BE_HEXADECIMAL_OR_IDENTIFIER;
+			}
+
+			case 'A': case 'B': case 'C':
+			case 'D': case 'E': case 'F':
 			GOTO_LEXER_COULD_BE_HEXADECIMAL_OR_IDENTIFIER: {
 				if (!test_if_hex(lexer.cursor))
 					goto GOTO_PARSE_IDENTIFIER;
 			}
 
-			case '0':
-			case '1':
-			case '2':
-			case '3':
-			case '4':
-			case '5':
-			case '6':
-			case '7':
-			case '8':
-			case '9': {
+			case '0': case '1': case '2': case '3': case '4':
+			case '5': case '6': case '7': case '8': case '9': {
 				parse_literal(&lexer);
 			} break;
 
@@ -841,7 +863,10 @@ TokenStore generate_tokens(String file_path) {
 				goto GOTO_PARSE_IDENTIFIER;
 
 			case 's':
-				if (test_keyword(&lexer, "struct",  TOKEN_STRUCT)) break;
+				if (test_keyword(&lexer, "struct",  TOKEN_STRUCT)) {
+					module->struct_count++;
+					break;
+				}
 				goto GOTO_PARSE_IDENTIFIER;
 
 			case 't':
@@ -866,7 +891,7 @@ TokenStore generate_tokens(String file_path) {
 			case 'L': case 'M': case 'N': case 'O': case 'P':
 			case 'Q': case 'R': case 'S': case 'T': case 'U':
 			case 'V': case 'W': case 'X': case 'Y': case 'Z':
-			case 'n': case 'j': case 'k': case 'l': case 'g':
+			case 'g': case 'j': case 'k': case 'l' :case 'n':
 			case 'h': case 'p': case 'v': case 'x': case 'y':
 			case 'z':
 			GOTO_PARSE_IDENTIFIER: {
@@ -874,93 +899,93 @@ TokenStore generate_tokens(String file_path) {
 			} break;
 
 			case '!': {
-				if (lexer.cursor[1] == '=') push_token(&lexer, TOKEN_NOT_EQUAL, 2);
-				else push_token(&lexer, TOKEN_EXCLAMATION, 1);
+				if (lexer.cursor[1] == '=') push_token(&lexer, TOKEN_NOT_EQUAL, 2, pos);
+				else push_token(&lexer, TOKEN_EXCLAMATION, 1, pos);
 			} break;
 
 			case '%': {
-				if (lexer.cursor[1] == '=') push_token(&lexer, TOKEN_PERCENT_EQUAL, 2);
-				else push_token(&lexer, TOKEN_PERCENT, 1);
+				if (lexer.cursor[1] == '=') push_token(&lexer, TOKEN_PERCENT_EQUAL, 2, pos);
+				else push_token(&lexer, TOKEN_PERCENT, 1, pos);
 			} break;
 
 			case '&': {
-				if (lexer.cursor[1] == '&') push_token(&lexer, TOKEN_AND, 2);
-				else if (lexer.cursor[1] == '=') push_token(&lexer, TOKEN_AMPERSAND_EQUAL, 2);
-				else push_token(&lexer, TOKEN_AMPERSAND, 1);
+				if (lexer.cursor[1] == '&') push_token(&lexer, TOKEN_AND, 2, pos);
+				else if (lexer.cursor[1] == '=') push_token(&lexer, TOKEN_AMPERSAND_EQUAL, 2, pos);
+				else push_token(&lexer, TOKEN_AMPERSAND, 1, pos);
 			} break;
 
 			case '+': {
-				if (lexer.cursor[1] == '=') push_token(&lexer, TOKEN_PLUS_EQUAL, 2);
-				else push_token(&lexer, TOKEN_PLUS, 1);
+				if (lexer.cursor[1] == '=') push_token(&lexer, TOKEN_PLUS_EQUAL, 2, pos);
+				else push_token(&lexer, TOKEN_PLUS, 1, pos);
 			} break;
 
 			case '-': {
-				if (lexer.cursor[1] == '=') push_token(&lexer, TOKEN_MINUS_EQUAL, 2);
-				else if (lexer.cursor[1] == '>') push_token(&lexer, TOKEN_ARROW, 2);
-				else push_token(&lexer, TOKEN_MINUS, 1);
+				if (lexer.cursor[1] == '=') push_token(&lexer, TOKEN_MINUS_EQUAL, 2, pos);
+				else if (lexer.cursor[1] == '>') push_token(&lexer, TOKEN_ARROW, 2, pos);
+				else push_token(&lexer, TOKEN_MINUS, 1, pos);
 			} break;
 
 			case '*': {
-				if (lexer.cursor[1] == '=') push_token(&lexer, TOKEN_ASTERISK_EQUAL, 2);
-				else push_token(&lexer, TOKEN_ASTERISK, 1);
+				if (lexer.cursor[1] == '=') push_token(&lexer, TOKEN_ASTERISK_EQUAL, 2, pos);
+				else push_token(&lexer, TOKEN_ASTERISK, 1, pos);
 			} break;
 
 			case '/': {
-				if (lexer.cursor[1] == '=') push_token(&lexer, TOKEN_SLASH_EQUAL, 2);
-				else push_token(&lexer, TOKEN_SLASH, 1);
+				if (lexer.cursor[1] == '=') push_token(&lexer, TOKEN_SLASH_EQUAL, 2, pos);
+				else push_token(&lexer, TOKEN_SLASH, 1, pos);
 			} break;
 
 			case '^': {
-				if (lexer.cursor[1] == '=') push_token(&lexer, TOKEN_CARET_EQUAL, 2);
-				else push_token(&lexer, TOKEN_CARET, 1);
+				if (lexer.cursor[1] == '=') push_token(&lexer, TOKEN_CARET_EQUAL, 2, pos);
+				else push_token(&lexer, TOKEN_CARET, 1, pos);
 			} break;
 
 			case '~': {
-				if (lexer.cursor[1] == '=') push_token(&lexer, TOKEN_TILDA_EQUAL, 2);
-				else push_token(&lexer, TOKEN_TILDA, 1);
+				if (lexer.cursor[1] == '=') push_token(&lexer, TOKEN_TILDA_EQUAL, 2, pos);
+				else push_token(&lexer, TOKEN_TILDA, 1, pos);
 			} break;
 
 			case '|': {
-				if (lexer.cursor[1] == '|') push_token(&lexer, TOKEN_OR, 2);
-				else if (lexer.cursor[1] == '=') push_token(&lexer, TOKEN_PIKE_EQUAL, 2);
-				else push_token(&lexer, TOKEN_PIKE, 1);
+				if (lexer.cursor[1] == '|') push_token(&lexer, TOKEN_OR, 2, pos);
+				else if (lexer.cursor[1] == '=') push_token(&lexer, TOKEN_PIKE_EQUAL, 2, pos);
+				else push_token(&lexer, TOKEN_PIKE, 1, pos);
 			} break;
 
 			case '<': {
-				if (lexer.cursor[1] == '=') push_token(&lexer, TOKEN_LESS_OR_EQUAL, 2);
-				else if (compare(lexer.cursor, "<<=", 3)) push_token(&lexer, TOKEN_LEFT_SHIFT_EQUAL, 3);
-				else if (lexer.cursor[1] == '<') push_token(&lexer, TOKEN_LEFT_SHIFT, 2);
-				else push_token(&lexer, TOKEN_LESS, 1);
+				if (lexer.cursor[1] == '=') push_token(&lexer, TOKEN_LESS_OR_EQUAL, 2, pos);
+				else if (compare(lexer.cursor, "<<=", 3)) push_token(&lexer, TOKEN_LEFT_SHIFT_EQUAL, 3, pos);
+				else if (lexer.cursor[1] == '<') push_token(&lexer, TOKEN_LEFT_SHIFT, 2, pos);
+				else push_token(&lexer, TOKEN_LESS, 1, pos);
 			} break;
 
 			case '>': {
-				if (lexer.cursor[1] == '=') push_token(&lexer, TOKEN_GREATER_OR_EQUAL, 2);
-				else if (compare(lexer.cursor, ">>=", 3)) push_token(&lexer, TOKEN_RIGHT_SHIFT_EQUAL, 3);
-				else if (lexer.cursor[1] == '>') push_token(&lexer, TOKEN_RIGHT_SHIFT, 2);
-				else push_token(&lexer, TOKEN_GREATER, 1);
+				if (lexer.cursor[1] == '=') push_token(&lexer, TOKEN_GREATER_OR_EQUAL, 2, pos);
+				else if (compare(lexer.cursor, ">>=", 3)) push_token(&lexer, TOKEN_RIGHT_SHIFT_EQUAL, 3, pos);
+				else if (lexer.cursor[1] == '>') push_token(&lexer, TOKEN_RIGHT_SHIFT, 2, pos);
+				else push_token(&lexer, TOKEN_GREATER, 1, pos);
 			} break;
 
 			case '.': {
-				if (lexer.cursor[1] == '.') push_token(&lexer, TOKEN_DOT_DOT, 2);
-				else push_token(&lexer, TOKEN_DOT, 1);
+				if (lexer.cursor[1] == '.') push_token(&lexer, TOKEN_DOT_DOT, 2, pos);
+				else push_token(&lexer, TOKEN_DOT, 1, pos);
 			} break;
 
-			case '\\': push_token(&lexer, TOKEN_BACK_SLASH,    1); break;
-			case ',':  push_token(&lexer, TOKEN_COMMA,         1); break;
-			case ':':  push_token(&lexer, TOKEN_COLON,         1); break;
-			case ';':  push_token(&lexer, TOKEN_SEMICOLON,     1); break;
-			case '=':  push_token(&lexer, TOKEN_EQUAL,         1); break;
-			case '?':  push_token(&lexer, TOKEN_QUESTION,      1); break;
-			case '@':  push_token(&lexer, TOKEN_AT,            1); break;
-			case '#':  push_token(&lexer, TOKEN_HASH,          1); break;
-			case '$':  push_token(&lexer, TOKEN_DOLLAR,        1); break;
-			case '`':  push_token(&lexer, TOKEN_BACKTICK,      1); break;
-			case '[':  push_token(&lexer, TOKEN_OPEN_BRACKET,  1); break;
-			case ']':  push_token(&lexer, TOKEN_CLOSE_BRACKET, 1); break;
-			case '{':  push_token(&lexer, TOKEN_OPEN_BRACE,    1); break;
-			case '}':  push_token(&lexer, TOKEN_CLOSE_BRACE,   1); break;
-			case '(':  push_token(&lexer, TOKEN_OPEN_PAREN,    1); break;
-			case ')':  push_token(&lexer, TOKEN_CLOSE_PAREN,   1); break;
+			case '\\': push_token(&lexer, TOKEN_BACK_SLASH,    1, pos); break;
+			case ',':  push_token(&lexer, TOKEN_COMMA,         1, pos); break;
+			case ':':  push_token(&lexer, TOKEN_COLON,         1, pos); break;
+			case ';':  push_token(&lexer, TOKEN_SEMICOLON,     1, pos); break;
+			case '=':  push_token(&lexer, TOKEN_EQUAL,         1, pos); break;
+			case '?':  push_token(&lexer, TOKEN_QUESTION,      1, pos); break;
+			case '@':  push_token(&lexer, TOKEN_AT,            1, pos); break;
+			case '#':  push_token(&lexer, TOKEN_HASH,          1, pos); break;
+			case '$':  push_token(&lexer, TOKEN_DOLLAR,        1, pos); break;
+			case '`':  push_token(&lexer, TOKEN_BACKTICK,      1, pos); break;
+			case '[':  push_token(&lexer, TOKEN_OPEN_BRACKET,  1, pos); break;
+			case ']':  push_token(&lexer, TOKEN_CLOSE_BRACKET, 1, pos); break;
+			case '{':  push_token(&lexer, TOKEN_OPEN_BRACE,    1, pos); break;
+			case '}':  push_token(&lexer, TOKEN_CLOSE_BRACE,   1, pos); break;
+			case '(':  push_token(&lexer, TOKEN_OPEN_PAREN,    1, pos); break;
+			case ')':  push_token(&lexer, TOKEN_CLOSE_PAREN,   1, pos); break;
 
 			case '"': {
 				parse_string(&lexer);
@@ -968,13 +993,13 @@ TokenStore generate_tokens(String file_path) {
 
 			case '\'':
 			default:
-				error("Unexepected character: '%'\n", arg_char(*lexer.cursor));
+				error(module->file, make_pos(&lexer, lexer.cursor), "Unexepected character: '%'\n", arg_char(*lexer.cursor));
 		}
 
 		lexer.newline = false;
 	}
 
-	push_token(&lexer, TOKEN_EOF, 0);
+	push_token(&lexer, TOKEN_EOF, 0, make_pos(&lexer, lexer.cursor));
 
 	// print("Tokens:\n");
 	// for (s i = 0; i < lexer.store.count; i++)
@@ -988,6 +1013,4 @@ TokenStore generate_tokens(String file_path) {
 	// print("Lexer took % cycles.\n",
 	// 	arg_u64(end_timer-start_timer)
 	// );
-
-	return lexer.store;
 }
