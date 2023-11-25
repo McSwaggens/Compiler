@@ -588,7 +588,7 @@ void print_argument(OutputBuffer* buffer, FormatArg arg) {
 }
 
 void internal_print(OutputBuffer* buffer, const char* format, __builtin_va_list args) {
-	const char* format_begin = format;
+	// const char* format_begin = format;
 	const char* left_cursor = format;
 	const char* cursor = format;
 

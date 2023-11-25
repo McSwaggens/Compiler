@@ -185,8 +185,15 @@ bool is_identifier(TokenKind kind) {
 }
 
 void check_indent(Module* module, Token* token, Indent16 indent) {
-	if (!is_correct_indent(token, indent))
-		error(module->file, token->pos, "Incorrect indentation\n");
+	if (!is_correct_indent(token, indent)) {
+		error(
+			module->file,
+			token->pos,
+			"Incorrect indentation, expected indent of %, not: %\n",
+			arg_u16(indent),
+			arg_u16(token->indent)
+		);
+	}
 }
 
 u8 correct_unary_precedence(u8 precedence, Token* token) {

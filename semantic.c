@@ -253,7 +253,7 @@ void scan_code(Module* module, Code* code) {
 
 void scan_scope(Module* module, Scope* scope) {
 	for (u64 i = 0; i < scope->variable_count; i++) {
-		Variable* var = scope->variables[i];
+		// Variable* var = scope->variables[i];
 	}
 }
 

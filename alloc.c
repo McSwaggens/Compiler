@@ -158,7 +158,7 @@ void ga_splat(u64 top_index, u64 bottom_index) {
 
 	// print("ga_splat(%, % -> %)\n", arg_u64(top_index), arg_u64(original_bottom_index), arg_u64(bottom_index));
 
-	u64 plot_before = global_allocator.plot;
+	// u64 plot_before = global_allocator.plot;
 	global_allocator.plot |= ((1llu<<top_index)-1) & (-1llu<<bottom_index);
 
 	// if ((global_allocator.plot & 4096) && !(plot_before & 4096))
