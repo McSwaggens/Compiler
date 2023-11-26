@@ -1,14 +1,11 @@
 #include "global_string_table.h"
 
-typedef struct TokenStore {
-	Token* tokens;
-	u64 count;
-} TokenStore;
-
 typedef struct Lexer {
 	char* cursor;
 	Token* head;
 	Token* tokens_begin;
+	TokenAux* aux_head;
+	TokenAux* aux_begin;
 	char* end;
 	char* line_begin;
 	u64 line;
@@ -462,11 +459,11 @@ void parse_literal(Lexer* lexer) {
 
 		if (bits == 32) {
 			token->kind = TOKEN_LITERAL_FLOAT32;
-			token->aux.f32 = (float32)value;
+			token->f32 = (float32)value;
 		}
 		else if (bits == 64) {
 			token->kind = TOKEN_LITERAL_FLOAT64;
-			token->aux.f64 = (float64)value;
+			token->f64 = (float64)value;
 		}
 		else assert_unreachable();
 	}
@@ -488,7 +485,7 @@ void parse_literal(Lexer* lexer) {
 
 		value <<= qualifier.scalar;
 
-		token->aux.i = value;
+		token->i = value;
 	}
 
 	String str = (String){ begin, p-begin };
@@ -591,7 +588,7 @@ void parse_identifier(Lexer* lexer) {
 		}
 	}
 
-	token->aux.string = (String){ s, length };
+	token->string = (String){ s, length };
 
 	lexer->cursor += length;
 }
@@ -653,9 +650,9 @@ void parse_string(Lexer* lexer) {
 	u64 result_numchars = input_numchars-subs;
 
 	if (p == lexer->end)
-		error(lexer->file, token->pos, "String not terminated.\n");
+		error(lexer->file, lexer->aux_head->pos, "String not terminated.\n");
 
-	token->aux.string = (String){ begin+1, result_numchars };
+	token->string = (String){ begin+1, result_numchars };
 
 	// @todo @bug: Handle multiline strings
 	if (subs) {
@@ -683,7 +680,7 @@ void parse_string(Lexer* lexer) {
 			}
 		}
 
-		token->aux.string = (String){ s, result_numchars };
+		token->string = (String){ s, result_numchars };
 	}
 
 	lexer->cursor = p;
@@ -707,14 +704,14 @@ void skip_whitespace(Lexer* lexer) {
 	Token* token = lexer->head;
 	char* p = lexer->cursor;
 	char* before = p;
-	bool newline = false;
+	token->flags = 0;
 
 	while (is_whitespace(*p) || compare(p, "//", 2)) {
 		if (*p == '\n') {
 			lexer->line_begin = p+1;
 			lexer->line++;
 			lexer->indent = 0;
-			newline = true;
+			token->flags |= NEWLINE;
 
 			for (p++; *p == '\t'; lexer->indent++, p++);
 		}
@@ -724,14 +721,14 @@ void skip_whitespace(Lexer* lexer) {
 		else p++;
 	}
 
-	bool spaced = (p != before);
-
-	token->lspace = spaced;
-	token->newline = newline;
 	token->indent = lexer->indent;
 
-	if (lexer->head != lexer->tokens_begin)
-		lexer->head[-1].rspace = spaced;
+	if (p != before) {
+		token->flags |= LSPACED;
+
+		if (lexer->head != lexer->tokens_begin)
+			lexer->head[-1].flags |= RSPACED;
+	}
 
 	lexer->cursor = p;
 }
@@ -748,13 +745,20 @@ void lex(Module* module) {
 
 	// u64 start_timer = read_timestamp_counter();
 
-	Token* tokens = alloc((file.size + 1) * sizeof(Token));
+	u64 maxlen = file.size + 1;
+	Token*    tokens = alloc(maxlen * (sizeof(Token)+sizeof(TokenAux)));
+	TokenAux* auxs   = (TokenAux*)(tokens+maxlen);
+
 	module->tokens = tokens;
+	module->tokens_end = tokens+maxlen;
+	module->auxs   = auxs;
 
 	Lexer lexer = {
 		.cursor       = file.data,
 		.head         = tokens,
 		.tokens_begin = tokens,
+		.aux_head     = auxs,
+		.aux_begin    = auxs,
 		.end          = file.data + file.size,
 		.indent       = 0,
 		.line         = 0,
@@ -770,7 +774,7 @@ void lex(Module* module) {
 
 		if (lexer.cursor >= lexer.end) break;
 
-		lexer.head->pos = make_pos(&lexer, lexer.cursor);
+		lexer.aux_head->pos = make_pos(&lexer, lexer.cursor);
 
 		switch (*lexer.cursor) {
 			case 'a': {
@@ -969,18 +973,24 @@ void lex(Module* module) {
 		}
 
 		lexer.head++;
+		lexer.aux_head++;
 	}
 
-	*lexer.head = (Token){
+	*lexer.head++ = (Token){
 		.kind = TOKEN_EOF,
-		.pos = make_pos(&lexer, lexer.cursor),
+		.flags = NEWLINE,
 		.indent = 0,
-		.newline = true,
 	};
 
+	*lexer.aux_head++ = (TokenAux){
+		.pos = make_pos(&lexer, lexer.cursor),
+	};
+
+	module->tokens_end = lexer.head;
+
 	print("Tokens:");
-	for (Token* token = lexer.tokens_begin; token < lexer.head+1; token++) {
-		print("%| % | %\n", arg_cstring(token->newline ? "\n--" : "  "), arg_u16(token->indent), arg_token(token));
+	for (Token* token = lexer.tokens_begin; token < lexer.head; token++) {
+		print("%| % | %\n", arg_cstring((token->flags & NEWLINE) ? "\n--" : "  "), arg_u16(token->indent), arg_token(token));
 	}
 	print("\n");
 

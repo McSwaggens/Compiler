@@ -215,34 +215,34 @@ void write_token(OutputBuffer* buffer, Token* token) {
 		case TOKEN_IDENTIFIER_VARIABLE:
 		case TOKEN_IDENTIFIER_FORMAL:
 		case TOKEN_IDENTIFIER_CONSTANT:
-			write_string(buffer, token->aux.identifier);
+			write_string(buffer, token->identifier);
 			return;
 
 		case TOKEN_LITERAL_INT8:
 		case TOKEN_LITERAL_INT16:
 		case TOKEN_LITERAL_INT32:
 		case TOKEN_LITERAL_INT64:
-			write_s64(buffer, token->aux.i);
+			write_s64(buffer, token->i);
 			return;
 
 		case TOKEN_LITERAL_UINT8:
 		case TOKEN_LITERAL_UINT16:
 		case TOKEN_LITERAL_UINT32:
 		case TOKEN_LITERAL_UINT64:
-			write_u64(buffer, token->aux.i);
+			write_u64(buffer, token->i);
 			return;
 
 		case TOKEN_LITERAL_FLOAT32:
-			write_f32(buffer, token->aux.f32);
+			write_f32(buffer, token->f32);
 			return;
 
 		case TOKEN_LITERAL_FLOAT64:
-			write_f64(buffer, token->aux.f64);
+			write_f64(buffer, token->f64);
 			return;
 
 		case TOKEN_LITERAL_STRING:
 			write_char(buffer, '"');
-			write_string(buffer, token->aux.string);
+			write_string(buffer, token->string);
 			write_char(buffer, '"');
 			return;
 
@@ -327,13 +327,13 @@ void write_expression(OutputBuffer* buffer, Expression* expr) {
 
 		case EXPR_FUNCTION:
 		case EXPR_BASETYPE_IDENTIFIER:
-			write_string(buffer, expr->token->aux.identifier);
+			write_string(buffer, expr->token->identifier);
 			break;
 
 		case EXPR_IDENTIFIER_CONSTANT:
 		case EXPR_IDENTIFIER_FORMAL:
 		case EXPR_IDENTIFIER_VARIABLE:
-			write_string(buffer, expr->token->aux.identifier);
+			write_string(buffer, expr->token->identifier);
 			break;
 
 		case EXPR_UNARY_SPEC_FIXED:
@@ -402,7 +402,11 @@ void write_expression(OutputBuffer* buffer, Expression* expr) {
 		case EXPR_CALL:
 			write_expression(buffer, expr->left);
 			write_char(buffer, '(');
-			write_expression(buffer, expr->right);
+			for (u32 i = 0; i < expr->call.arg_count; i++) {
+				if (i) write_cstring(buffer, ", ");
+				Expression* arg = expr->call.args[i];
+				write_expression(buffer, arg);
+			}
 			write_char(buffer, ')');
 			break;
 
@@ -642,6 +646,24 @@ void printbuff(OutputBuffer* buffer, const char* format, ...) {
 void error(String file, Position pos, const char* format, ...) {
 	print("%:%:%: error: ",
 		arg_string(file),
+		arg_u64(pos.line+1),
+		arg_u64(pos.column+1)
+	);
+
+	__builtin_va_list args;
+	__builtin_va_start(args, format);
+	internal_print(&standard_output_buffer, format, args);
+	__builtin_va_end(args);
+	flush_output_buffer(&standard_output_buffer);
+	exit_program();
+}
+
+void errort(Token* token, const char* format, ...) {
+	Module* module = find_module(token);
+	Position pos = get_pos(module, token);
+
+	print("%:%:%: error: ",
+		arg_string(module->file),
 		arg_u64(pos.line+1),
 		arg_u64(pos.column+1)
 	);

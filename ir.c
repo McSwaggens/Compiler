@@ -261,7 +261,7 @@ Value convert_expression(Expression* expr, Block* block) {
 		case EXPR_FALSE: return vint(0);
 
 		case EXPR_LITERAL: {
-			return vint(expr->token->aux.i);
+			return vint(expr->token->i);
 		} break;
 
 		case EXPR_FUNCTION: {
@@ -341,11 +341,13 @@ Value convert_expression(Expression* expr, Block* block) {
 
 			Value vleft  = convert_expression(expr->left, block);
 			Value vright = convert_expression(expr->right, block);
+
 			Instruction* iadd = add_instruction(block, (Instruction){
 				.kind = kindlut[expr->kind][unsign],
 				.a    = vleft,
 				.b    = vright,
 			});
+
 			return vinst(iadd);
 		}
 
@@ -355,10 +357,23 @@ Value convert_expression(Expression* expr, Block* block) {
 		} break;
 
 		case EXPR_BINARY_DOT_DOT:
-		case EXPR_BINARY_SPAN:
+		case EXPR_BINARY_SPAN: {
+		} break;
+
 		case EXPR_CALL: {
 			Value vleft  = convert_expression(expr->left, block);
-			Value vright = convert_expression(expr->right, block);
+
+			for (u32 i = 0; i < expr->call.arg_count; i++) {
+				Expression* arg = expr->call.args[i];
+				convert_expression(arg, block);
+			}
+
+			Instruction* icall = add_instruction(block, (Instruction){
+				.kind = INSTRUCTION_CALL,
+				.a    = vleft,
+			});
+
+			return vinst(icall);
 		} break;
 
 		case EXPR_INDEX: {
@@ -541,7 +556,7 @@ void convert_function(Function* func) {
 void preconvert_module(Module* module) {
 	for (u32 i = 0; i < module->function_count; i++) {
 		Function* func = &module->functions[i];
-		func->proc = make_procedure(func->name->aux.string);
+		func->proc = make_procedure(func->name->string);
 	}
 }
 
@@ -549,7 +564,7 @@ void convert_module(Module* module) {
 	for (u32 i = 0; i < module->function_count; i++) {
 		Function* func = &module->functions[i];
 		Procedure* proc = func->proc;
-		proc->name = func->name->aux.string;
+		proc->name = func->name->string;
 		convert_function(func);
 	}
 

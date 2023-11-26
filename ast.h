@@ -139,20 +139,37 @@ enum ExpressionKind {
 };
 
 enum ExpressionFlags {
-	EXPR_FLAG_CONSTANT = 1<<0,
+	EXPR_FLAG_CONSTANT = 0x01,
 };
 
 struct Expression {
-	ExpressionKind kind;
-	ExpressionFlags flags;
+	ExpressionKind kind : 8;
+	ExpressionFlags flags : 8;
 	TypeID type;
-	Expression** elems;
-	u64 elem_count;
-	Expression* left;    // Fixed array length expression goes here
-	Expression* middle;
-	Expression* right;   // Unary subexpressions go here
-	Variable* var;
-	Function* func;
+
+	struct Call {
+		Expression* function;
+		Expression** args;
+		u64 arg_count;
+	} call;
+
+	Expression* left; // Fixed array length expression goes here
+
+	// union {
+		// struct {
+			Expression** elems;
+			u64 elem_count;
+		// };
+
+		// struct {
+			Expression* middle;
+			Expression* right;  // Unary subexpressions go here
+		// };
+
+		Variable* var;
+		Function* func;
+	// };
+
 	Token* token;
 	Token* begin;
 	Token* end;
@@ -278,6 +295,8 @@ struct Module {
 
 	String file;
 	Token* tokens;
+	Token* tokens_end;
+	TokenAux* auxs;
 
 	Function* functions;
 	u64 function_count;
@@ -290,6 +309,10 @@ struct Module {
 
 	char** usertype_names;
 };
+
+Module* find_module(Token* token);
+TokenAux* get_aux(Module* module, Token* token);
+Position get_pos(Module* module, Token* token);
 
 #endif // AST_H
 

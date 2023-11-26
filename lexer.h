@@ -5,7 +5,9 @@ typedef enum TokenKind TokenKind;
 typedef union TokenAuxilaryInfo TokenAuxilaryInfo;
 typedef struct Token Token;
 typedef struct Position Position;
+typedef struct TokenAux TokenAux;
 typedef u16 Indent16;
+typedef u8  TokenFlags8;
 
 enum TokenKind {
 	TOKEN_EOF = 0,
@@ -114,31 +116,35 @@ enum TokenKind {
 	TOKEN_PIKE_EQUAL,
 };
 
-union TokenAuxilaryInfo {
-	s64 i;
-	float32 f32;
-	float64 f64;
-	String string;
-	String identifier;
-};
-
 struct Position {
 	u64 line;
 	u64 column;
 };
 
-// @Todo: SOA tokens
+enum {
+	NEWLINE = 0x01,
+	LSPACED = 0x02,
+	RSPACED = 0x04,
+};
+
+// Tokens are partially SOA'd to reduce size in cache.
 struct Token {
-	TokenKind kind;
+	TokenKind kind : 8;
+	TokenFlags8 flags;
 	Indent16 indent;
 
-	// @Todo turn bools into flags
-	bool newline;
-	bool lspace;
-	bool rspace;
+	union {
+		s64 i;
+		float32 f32;
+		float64 f64;
+		String string;
+		String identifier;
+	};
+};
 
-	Position pos;
-	TokenAuxilaryInfo aux;
+// TokenAux is for cold data only.
+struct TokenAux {
+	Position pos; // Only used when we're printing an error.
 };
 
 #endif // LEXER_H

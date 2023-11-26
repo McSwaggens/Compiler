@@ -38,9 +38,32 @@ Module* make_module(String file) {
 	*module = (Module){
 		.file = file,
 	};
+
 	module_store.modules[module_store.count++] = module;
 
 	return module;
+}
+
+// @WARNING: VERY SLOW FUNCTION.
+// @WARNING: ONLY USE IN COLD PATH (Error)
+Module* find_module(Token* token) {
+	for (u32 i = 0; i < module_store.count; i++) {
+		Module* module = module_store.modules[i];
+		if (token >= module->tokens && token < module->tokens_end)
+			return module;
+	}
+
+	assert_unreachable();
+	return null;
+}
+
+TokenAux* get_aux(Module* module, Token* token) {
+	u32 index = token - module->tokens;
+	return &module->auxs[index];
+}
+
+Position get_pos(Module* module, Token* token) {
+	return get_aux(module, token)->pos;
 }
 
 void init_module_store(void) {

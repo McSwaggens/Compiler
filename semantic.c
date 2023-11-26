@@ -45,7 +45,7 @@ Function* find_function(Module* module, char* name) {
 	for (u64 i = 0; i < module->function_count; i++) {
 		Function* func = &module->functions[i];
 
-		if (func->name->aux.string.data != name)
+		if (func->name->string.data != name)
 			continue;
 
 		return func;
@@ -61,7 +61,7 @@ Variable* find_variable(Scope* scope, char* name) {
 		// if (!(var->flags & VAR_SCANNED))
 		// 	break;
 
-		if (var->name->aux.string.data != name)
+		if (var->name->string.data != name)
 			continue;
 
 		return var;
@@ -76,23 +76,39 @@ Variable* find_variable(Scope* scope, char* name) {
 void scan_identifier(Module* module, Expression* expr, Scope* scope) {
 	Token* ident = expr->token;
 	bool isconst = ident->kind != TOKEN_IDENTIFIER_VARIABLE;
-	Variable* var = find_variable(scope, ident->aux.identifier.data);
+	Variable* var = find_variable(scope, ident->identifier.data);
 
 	if (isconst)
 		expr->flags |= EXPR_FLAG_CONSTANT;
 
 	if (!var && isconst)
-		error(module->file, expr->begin->pos,
-			"Constant '%' not defined.\n", arg_token(ident));
+		errort(expr->begin, "Constant '%' not defined.\n", arg_token(ident));
 
 	if (!var && !isconst)
-		error(module->file, expr->begin->pos,
-			"Variable '%' wasn't declared.\n", arg_token(ident));
+		errort(expr->begin, "Variable '%' wasn't declared.\n", arg_token(ident));
 
 	expr->var = var;
 }
 
 void scan_call(Module* module, Expression* expr, Scope* scope) {
+	Expression* func_expr = expr->left;
+
+	if (func_expr->token->kind != TOKEN_IDENTIFIER_FORMAL) {
+		scan_expression(module, func_expr, scope);
+	}
+	else {
+		Token* name_token = func_expr->token;
+		String name = name_token->string;
+
+		Function* func = find_function(module, name.data);
+
+		if (!func) {
+			errort(name_token, "No such function called %\n", arg_string(name));
+		}
+
+		func_expr->kind = EXPR_FUNCTION;
+		func_expr->func = func;
+	}
 }
 
 void scan_expression(Module* module, Expression* expr, Scope* scope) {
