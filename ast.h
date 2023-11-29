@@ -101,15 +101,16 @@ enum ExpressionKind {
 	EXPR_ARRAY,
 	EXPR_TUPLE,
 
+	EXPR_SPEC_PTR,
+	EXPR_SPEC_ARRAY,
+	EXPR_SPEC_FIXED,
+
+	EXPR_UNARY_PTR,
+	EXPR_UNARY_REF,
 	EXPR_UNARY_ABS,
 	EXPR_UNARY_INVERSE,
 	EXPR_UNARY_NOT,
 	EXPR_UNARY_BIT_NOT,
-	EXPR_UNARY_PTR,
-	EXPR_UNARY_REF,
-	EXPR_UNARY_SPEC_PTR,
-	EXPR_UNARY_SPEC_ARRAY,
-	EXPR_UNARY_SPEC_FIXED,
 
 	EXPR_BINARY_ADD,
 	EXPR_BINARY_SUB,
@@ -147,30 +148,59 @@ struct Expression {
 	ExpressionFlags flags : 8;
 	TypeID type;
 
-	struct Call {
-		Expression* function;
-		Expression** args;
-		u64 arg_count;
-	} call;
+	union {
+		struct {
+			Token* optoken;
+			Expression* sub;
+		} unary;
 
-	Expression* left; // Fixed array length expression goes here
+		struct {
+			Token* optoken;
+			Expression* left;
+			Expression* right;
+		} binary;
 
-	// union {
-		// struct {
+		struct {
+			Token* optoken;
+			Expression* left;
+			Expression* middle;
+			Expression* right;
+		} ternary;
+
+		struct {
+			Expression* function;
+			Expression** args;
+			u64 arg_count;
+		} call;
+
+		struct {
 			Expression** elems;
 			u64 elem_count;
-		// };
+		} tuple, fixed, array;
 
-		// struct {
-			Expression* middle;
-			Expression* right;  // Unary subexpressions go here
-		// };
+		struct {
+			Token* sepcifier_token;
+			Expression* sub;
+			Expression* length;
+		} specifier;
 
-		Variable* var;
-		Function* func;
-	// };
+		struct {
+			Variable* var;
+			Function* func;
+			Token* token;
+		} term;
 
-	Token* token;
+		struct {
+			Expression* base;
+			Expression* index;
+		} subscript;
+
+		struct {
+			Expression* left;
+			Expression* right;
+		} span;
+	};
+
 	Token* begin;
 	Token* end;
 };

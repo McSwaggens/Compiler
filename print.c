@@ -275,9 +275,10 @@ void write_expression_kind(OutputBuffer* buffer, ExpressionKind kind) {
 		case EXPR_UNARY_BIT_NOT:           str = "EXPR_UNARY_BIT_NOT";           break;
 		case EXPR_UNARY_PTR:               str = "EXPR_UNARY_PTR";               break;
 		case EXPR_UNARY_REF:               str = "EXPR_UNARY_REF";               break;
-		case EXPR_UNARY_SPEC_PTR:          str = "EXPR_UNARY_SPEC_PTR";          break;
-		case EXPR_UNARY_SPEC_ARRAY:        str = "EXPR_UNARY_SPEC_ARRAY";        break;
-		case EXPR_UNARY_SPEC_FIXED:        str = "EXPR_UNARY_SPEC_FIXED";        break;
+
+		case EXPR_SPEC_PTR:                str = "EXPR_SPEC_PTR";                break;
+		case EXPR_SPEC_ARRAY:              str = "EXPR_SPEC_ARRAY";              break;
+		case EXPR_SPEC_FIXED:              str = "EXPR_SPEC_FIXED";              break;
 
 		case EXPR_BINARY_ADD:              str = "EXPR_BINARY_ADD";              break;
 		case EXPR_BINARY_SUB:              str = "EXPR_BINARY_SUB";              break;
@@ -321,47 +322,50 @@ void write_expression(OutputBuffer* buffer, Expression* expr) {
 		case EXPR_FALSE:
 		case EXPR_NULL:
 		case EXPR_BASETYPE_PRIMITIVE:
-		case EXPR_LITERAL:
-			write_token(buffer, expr->token);
-			break;
-
-		case EXPR_FUNCTION:
 		case EXPR_BASETYPE_IDENTIFIER:
-			write_string(buffer, expr->token->identifier);
-			break;
+		case EXPR_LITERAL: {
+			write_token(buffer, expr->term.token);
+		} break;
+
+		case EXPR_FUNCTION: {
+			if (!expr->term.func)
+				write_cstring(buffer, "null");
+			else
+				write_token(buffer, expr->term.func->name);
+		} break;
 
 		case EXPR_IDENTIFIER_CONSTANT:
 		case EXPR_IDENTIFIER_FORMAL:
-		case EXPR_IDENTIFIER_VARIABLE:
-			write_string(buffer, expr->token->identifier);
-			break;
+		case EXPR_IDENTIFIER_VARIABLE: {
+			write_string(buffer, expr->term.token->identifier);
+		} break;
 
-		case EXPR_UNARY_SPEC_FIXED:
-			write_expression(buffer, expr->left);
+		case EXPR_SPEC_FIXED: {
+			write_expression(buffer, expr->specifier.sub);
 			write_char(buffer, '[');
-			write_expression(buffer, expr->right);
+			write_expression(buffer, expr->specifier.length);
 			write_char(buffer, ']');
-			break;
+		} break;
 
+		case EXPR_SPEC_PTR:
+		case EXPR_SPEC_ARRAY: {
+			write_char(buffer, '(');
+			write_token(buffer, expr->specifier.sepcifier_token);
+			write_expression(buffer, expr->specifier.sub);
+			write_char(buffer, ')');
+		} break;
+
+		case EXPR_UNARY_PTR:
+		case EXPR_UNARY_REF:
 		case EXPR_UNARY_ABS:
 		case EXPR_UNARY_INVERSE:
 		case EXPR_UNARY_NOT:
-		case EXPR_UNARY_BIT_NOT:
-		case EXPR_UNARY_PTR:
-		case EXPR_UNARY_SPEC_ARRAY:
-		case EXPR_UNARY_SPEC_PTR:
+		case EXPR_UNARY_BIT_NOT: {
 			write_char(buffer, '(');
-			write_token(buffer, expr->token);
-			write_expression(buffer, expr->right);
+			write_token(buffer, expr->unary.optoken);
+			write_expression(buffer, expr->unary.sub);
 			write_char(buffer, ')');
-			break;
-
-		case EXPR_UNARY_REF:
-			write_char(buffer, '(');
-			write_cstring(buffer, "ref ");
-			write_expression(buffer, expr->right);
-			write_char(buffer, ')');
-			break;
+		} break;
 
 		case EXPR_BINARY_ADD:
 		case EXPR_BINARY_SUB:
@@ -382,75 +386,78 @@ void write_expression(OutputBuffer* buffer, Expression* expr) {
 		case EXPR_BINARY_LSHIFT:
 		case EXPR_BINARY_RSHIFT:
 		case EXPR_BINARY_DOT:
-		case EXPR_BINARY_DOT_DOT:
+		case EXPR_BINARY_DOT_DOT: {
 			write_char(buffer, '(');
-			write_expression(buffer, expr->left);
+			write_expression(buffer, expr->binary.left);
 			write_char(buffer, ' ');
-			write_token(buffer, expr->token);
+			write_token(buffer, expr->binary.optoken);
 			write_char(buffer, ' ');
-			write_expression(buffer, expr->right);
+			write_expression(buffer, expr->binary.right);
 			write_char(buffer, ')');
-			break;
+		} break;
 
-		case EXPR_INDEX:
-			write_expression(buffer, expr->left);
+		case EXPR_INDEX: {
+			write_expression(buffer, expr->subscript.base);
 			write_char(buffer, '[');
-			write_expression(buffer, expr->right);
+			write_expression(buffer, expr->subscript.index);
 			write_char(buffer, ']');
-			break;
+		} break;
 
-		case EXPR_CALL:
-			write_expression(buffer, expr->left);
+		case EXPR_CALL: {
+			write_expression(buffer, expr->call.function);
 			write_char(buffer, '(');
-			for (u32 i = 0; i < expr->call.arg_count; i++) {
+			for (u64 i = 0; i < expr->call.arg_count; i++) {
 				if (i) write_cstring(buffer, ", ");
 				Expression* arg = expr->call.args[i];
 				write_expression(buffer, arg);
 			}
 			write_char(buffer, ')');
-			break;
+		} break;
 
-		case EXPR_BINARY_SPAN:
+		case EXPR_BINARY_SPAN: {
 			write_char(buffer, '[');
-			write_expression(buffer, expr->left);
+			write_expression(buffer, expr->span.left);
 			write_cstring(buffer, " .. ");
-			write_expression(buffer, expr->right);
+			write_expression(buffer, expr->span.right);
 			write_char(buffer, ']');
-			break;
+		} break;
 
 
-		case EXPR_TERNARY_IF_ELSE:
+		case EXPR_TERNARY_IF_ELSE: {
 			write_char(buffer, '(');
-			write_expression(buffer, expr->left);
+			write_expression(buffer, expr->ternary.left);
 			write_cstring(buffer, " if ");
-			write_expression(buffer, expr->middle);
+			write_expression(buffer, expr->ternary.middle);
 			write_cstring(buffer, " else ");
-			write_expression(buffer, expr->right);
+			write_expression(buffer, expr->ternary.right);
 			write_char(buffer, ')');
-			break;
+		} break;
 
-		case EXPR_ARRAY:
+		case EXPR_ARRAY: {
 			write_cstring(buffer, "{ARRAY: ");
-			for (u64 i = 0; i < expr->elem_count; i++) {
+
+			for (u64 i = 0; i < expr->array.elem_count; i++) {
 				if (i) write_cstring(buffer, ", ");
-				Expression* elem = expr->elems[i];
+				Expression* elem = expr->array.elems[i];
 				write_expression(buffer, elem);
 			}
 
-			if (expr->elem_count)
+			if (expr->array.elem_count)
 				write_char(buffer, ' ');
 
 			write_cstring(buffer, "}");
+		} break;
 
-		case EXPR_TUPLE:
+		case EXPR_TUPLE: {
 			write_cstring(buffer, "(TUPLE: ");
-			for (u64 i = 0; i < expr->elem_count; i++) {
+			for (u64 i = 0; i < expr->tuple.elem_count; i++) {
 				if (i) write_cstring(buffer, ", ");
-				Expression* elem = expr->elems[i];
+				Expression* elem = expr->tuple.elems[i];
 				write_expression(buffer, elem);
 			}
 
 			write_cstring(buffer, ")");
+		} break;
 	}
 }
 

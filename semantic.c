@@ -74,7 +74,7 @@ Variable* find_variable(Scope* scope, char* name) {
 }
 
 void scan_identifier(Module* module, Expression* expr, Scope* scope) {
-	Token* ident = expr->token;
+	Token* ident = expr->term.token;
 	bool isconst = ident->kind != TOKEN_IDENTIFIER_VARIABLE;
 	Variable* var = find_variable(scope, ident->identifier.data);
 
@@ -87,28 +87,28 @@ void scan_identifier(Module* module, Expression* expr, Scope* scope) {
 	if (!var && !isconst)
 		errort(expr->begin, "Variable '%' wasn't declared.\n", arg_token(ident));
 
-	expr->var = var;
+	expr->term.var = var;
 }
 
 void scan_call(Module* module, Expression* expr, Scope* scope) {
-	Expression* func_expr = expr->left;
+	Expression* func_expr = expr->call.function;
 
-	if (func_expr->token->kind != TOKEN_IDENTIFIER_FORMAL) {
+	if (func_expr->kind != EXPR_IDENTIFIER_FORMAL) {
 		scan_expression(module, func_expr, scope);
+		return;
 	}
-	else {
-		Token* name_token = func_expr->token;
-		String name = name_token->string;
 
-		Function* func = find_function(module, name.data);
+	Token* name_token = func_expr->term.token;
+	String name = name_token->string;
 
-		if (!func) {
-			errort(name_token, "No such function called %\n", arg_string(name));
-		}
+	Function* func = find_function(module, name.data);
 
-		func_expr->kind = EXPR_FUNCTION;
-		func_expr->func = func;
+	if (!func) {
+		errort(name_token, "No such function called %\n", arg_string(name));
 	}
+
+	func_expr->kind = EXPR_FUNCTION;
+	func_expr->term.func = func;
 }
 
 void scan_expression(Module* module, Expression* expr, Scope* scope) {
@@ -150,12 +150,15 @@ void scan_expression(Module* module, Expression* expr, Scope* scope) {
 		case EXPR_UNARY_NOT:
 		case EXPR_UNARY_BIT_NOT:
 		case EXPR_UNARY_PTR:
-		case EXPR_UNARY_REF:
-		case EXPR_UNARY_SPEC_PTR:
-		case EXPR_UNARY_SPEC_ARRAY:
-		case EXPR_UNARY_SPEC_FIXED:
+		case EXPR_UNARY_REF: {
 			print("unhandled\n");
-			break;
+		} break;
+
+		case EXPR_SPEC_PTR:
+		case EXPR_SPEC_ARRAY:
+		case EXPR_SPEC_FIXED: {
+			print("unhandled\n");
+		} break;
 
 		case EXPR_BINARY_ADD: {
 		case EXPR_BINARY_SUB:
@@ -167,8 +170,8 @@ void scan_expression(Module* module, Expression* expr, Scope* scope) {
 		case EXPR_BINARY_BIT_OR:
 		case EXPR_BINARY_LSHIFT:
 		case EXPR_BINARY_RSHIFT:
-			scan_expression(module, expr->left,  scope);
-			scan_expression(module, expr->right, scope);
+			scan_expression(module, expr->binary.left,  scope);
+			scan_expression(module, expr->binary.right, scope);
 		} break;
 
 		case EXPR_BINARY_OR:

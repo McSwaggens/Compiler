@@ -414,31 +414,38 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 		case TOKEN_FALSE: kind = EXPR_FALSE; goto GOTO_TERM;
 		case TOKEN_NULL:  kind = EXPR_NULL;  goto GOTO_TERM;
 
-		case TOKEN_LITERAL_INT8:   case TOKEN_LITERAL_INT16:
-		case TOKEN_LITERAL_INT32:  case TOKEN_LITERAL_INT64:
-		case TOKEN_LITERAL_UINT8:  case TOKEN_LITERAL_UINT16:
-		case TOKEN_LITERAL_UINT32: case TOKEN_LITERAL_UINT64:
+		case TOKEN_LITERAL_INT8:
+		case TOKEN_LITERAL_INT16:
+		case TOKEN_LITERAL_INT32:
+		case TOKEN_LITERAL_INT64:
+		case TOKEN_LITERAL_UINT8:
+		case TOKEN_LITERAL_UINT16:
+		case TOKEN_LITERAL_UINT32:
+		case TOKEN_LITERAL_UINT64:
 			kind = EXPR_LITERAL;
 			goto GOTO_TERM;
 
-		case TOKEN_LITERAL_FLOAT32:     kind = EXPR_LITERAL; goto GOTO_TERM;
-		case TOKEN_LITERAL_FLOAT64:     kind = EXPR_LITERAL; goto GOTO_TERM;
-		case TOKEN_LITERAL_STRING:      kind = EXPR_LITERAL; goto GOTO_TERM;
-		GOTO_TERM:
-			left = alloc_expression();
-			left->kind = kind;
-			left->token = token;
-			token++;
-			break;
+		case TOKEN_LITERAL_FLOAT32:
+		case TOKEN_LITERAL_FLOAT64:
+		case TOKEN_LITERAL_STRING:
+			kind = EXPR_LITERAL;
+			goto GOTO_TERM;
 
 		case TOKEN_BYTE:   case TOKEN_BOOL:   case TOKEN_INT:     case TOKEN_INT8:    case TOKEN_INT16:
 		case TOKEN_INT32:  case TOKEN_INT64:  case TOKEN_UINT:    case TOKEN_UINT8:   case TOKEN_UINT16:
 		case TOKEN_UINT32: case TOKEN_UINT64: case TOKEN_FLOAT32: case TOKEN_FLOAT64: case TOKEN_TYPE_ID:
+			kind = EXPR_BASETYPE_PRIMITIVE;
+			goto GOTO_TERM;
+
+		GOTO_TERM: {
 			left = alloc_expression();
-			left->kind = EXPR_BASETYPE_PRIMITIVE;
-			left->token = token;
+			*left = (Expression){
+				.kind = kind,
+				.term.token = token,
+			};
+
 			token++;
-			break;
+		} break;
 
 		case TOKEN_ASTERISK:    kind = EXPR_UNARY_PTR;     goto GOTO_UNARY;
 		case TOKEN_AT:          kind = EXPR_UNARY_REF;     goto GOTO_UNARY;
@@ -446,18 +453,23 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 		case TOKEN_TILDA:       kind = EXPR_UNARY_BIT_NOT; goto GOTO_UNARY;
 		case TOKEN_MINUS:       kind = EXPR_UNARY_INVERSE; goto GOTO_UNARY;
 		case TOKEN_PLUS:        kind = EXPR_UNARY_ABS;     goto GOTO_UNARY;
-		GOTO_UNARY:
+		GOTO_UNARY: {
 			left = alloc_expression();
-			left->kind = kind;
-			left->token = token;
+			*left = (Expression){
+				.kind = kind,
+				.unary.optoken = token,
+			};
+
 			test_expression_indent(module, token+1, helper, 0, true);
-			token = internal_parse_expression(module, token+1, allow_equals, unaryprec, helper, &left->right);
-			break;
+			token = internal_parse_expression(module, token+1, allow_equals, unaryprec, helper, &left->unary.sub);
+		} break;
 
 		case TOKEN_OPEN_BRACE: {
 			left = alloc_expression();
-			left->kind = EXPR_ARRAY;
-			left->token = token;
+			*left = (Expression){
+				.kind = EXPR_ARRAY,
+			};
+
 			test_expression_indent(module, token, helper, 0, true);
 			token++;
 
@@ -494,15 +506,17 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 			test_expression_indent(module, token, helper, 0, true);
 			token++;
 
-			left->elems = elems;
-			left->elem_count = count;
+			left->array.elems = elems;
+			left->array.elem_count = count;
 
 		} break;
 
 		case TOKEN_OPEN_PAREN: {
 			left = alloc_expression();
-			left->kind = EXPR_TUPLE;
-			left->token = token;
+			*left = (Expression){
+				.kind = EXPR_TUPLE,
+			};
+
 			test_expression_indent(module, token, helper, 0, true);
 			token++;
 
@@ -545,37 +559,39 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 			test_expression_indent(module, token, helper, 0, true);
 			token++;
 
-			left->elems = elems;
-			left->elem_count = count;
+			left->tuple.elems = elems;
+			left->tuple.elem_count = count;
 			// print("Tuple parse finished.\n");
 
 		} break;
 
 		case TOKEN_OPEN_BRACKET: {
 			left = alloc_expression();
-			left->kind = EXPR_UNARY_SPEC_FIXED;
-			left->token = token;
+			left->kind = EXPR_SPEC_FIXED;
 
 			helper->bracket_level++;
 
 			if (token[1].kind == TOKEN_CLOSE_BRACKET) {
-				left->kind = EXPR_UNARY_SPEC_ARRAY; // []e
+				left->kind = EXPR_SPEC_ARRAY; // []e
 
 				// Take subexpression
 				test_expression_indent(module, token+2, helper, 0, true); // e
-				token = internal_parse_expression(module, token+2, allow_equals, unaryprec, helper, &left->right);
+				token = internal_parse_expression(module, token+2, allow_equals, unaryprec, helper, &left->specifier.sub);
 				break;
 			}
 
-			left->kind = EXPR_UNARY_SPEC_FIXED; // [N]e
+			Expression* lexpr = null;
+
+			left->kind = EXPR_SPEC_FIXED; // [N]e
 			test_expression_indent(module, token+1, helper, 0, true); // e
-			token = internal_parse_expression(module, token+1, allow_equals, 0, helper, &left->left);
+			token = internal_parse_expression(module, token+1, allow_equals, 0, helper, &lexpr);
 
 			if (token->kind == TOKEN_DOT_DOT) {
-				test_expression_indent(module, token, helper, -1, true); // ..
 				left->kind = EXPR_BINARY_SPAN; // [a..b]
+				left->span.left = lexpr;
+				test_expression_indent(module, token, helper, -1, true); // ..
 				test_expression_indent(module, token+1, helper, 0, true); // b
-				token = internal_parse_expression(module, token+1, allow_equals, 0, helper, &left->right);
+				token = internal_parse_expression(module, token+1, allow_equals, 0, helper, &left->span.right);
 			}
 
 			if (token->kind != TOKEN_CLOSE_BRACKET)
@@ -585,10 +601,12 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 			test_expression_indent(module, token, helper, 0, true); // ]
 			token++;
 
-			if (left->kind == EXPR_UNARY_SPEC_FIXED) { // [N]e
+
+			if (left->kind == EXPR_SPEC_FIXED) { // [N]e
 				// Take subexpression
+				left->specifier.length = lexpr;
 				test_expression_indent(module, token, helper, 0, true); // e
-				token = internal_parse_expression(module, token, allow_equals, unaryprec, helper, &left->right);
+				token = internal_parse_expression(module, token, allow_equals, unaryprec, helper, &left->specifier.sub);
 			}
 		} break;
 
@@ -621,10 +639,6 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 			break;
 
 		Expression* expr = alloc_expression();
-		expr->left = left;
-		left = expr;
-
-		expr->token = token;
 
 		switch (token->kind) {
 			default:
@@ -653,38 +667,51 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 
 			case TOKEN_AND:              expr->kind = EXPR_BINARY_AND;              goto GOTO_BINARY_OP;
 			case TOKEN_OR:               expr->kind = EXPR_BINARY_OR;               goto GOTO_BINARY_OP;
-			GOTO_BINARY_OP:
+			GOTO_BINARY_OP: {
+				expr->binary.optoken = token;
+				expr->binary.left = left;
 				test_expression_indent(module, token+1, helper, 0, true);
-				token = internal_parse_expression(module, token+1, allow_equals, precedence, helper, &expr->right);
-				break;
+				token = internal_parse_expression(module, token+1, allow_equals, precedence, helper, &expr->binary.right);
+			} break;
 
-			case TOKEN_OPEN_BRACKET:
+			case TOKEN_OPEN_BRACKET: {
 				expr->kind = EXPR_INDEX;
-				expr->token = token;
+				expr->subscript.base = left;
+				// expr->subscript.token = token;
 				token++;
 
 				helper->bracket_level++;
 				test_expression_indent(module, token, helper, 0, true);
-				token = internal_parse_expression(module, token, allow_equals, precedence, helper, &expr->right);
+				token = internal_parse_expression(module, token, allow_equals, precedence, helper, &expr->subscript.index);
+
+				if (token->kind != TOKEN_CLOSE_BRACKET) {
+					errort(token, "Subscript expression not closed. Expected ']' after index expression, not: %\n", arg_token(token));
+				}
+
 				helper->bracket_level--;
 				test_expression_indent(module, token, helper, 0, true);
 				token++;
+			} break;
 
-				break;
+			case TOKEN_OPEN_PAREN: {
+				*expr = (Expression){
+					.kind           = EXPR_CALL,
+					.call.function  = left,
+					.call.arg_count = 0,
+					.call.args      = null,
+				};
 
-			case TOKEN_OPEN_PAREN:
-				expr->kind = EXPR_CALL;
-				expr->token = token;
 				token++;
 
 				helper->bracket_level++;
 
 				if (token->kind != TOKEN_CLOSE_PAREN)
 				while (true) {
-					expr->elems = realloc(expr->elems, sizeof(Expression*)*expr->elem_count, sizeof(Expression*)*expr->elem_count+1);
+					// @Todo: Precompute size
+					expr->call.args = realloc(expr->call.args, sizeof(Expression*)*expr->call.arg_count, sizeof(Expression*)*expr->call.arg_count+1);
 					test_expression_indent(module, token, helper, 0, true);
-					token = internal_parse_expression(module, token, allow_equals, precedence, helper, &expr->elems[expr->elem_count]);
-					expr->elem_count++;
+					token = internal_parse_expression(module, token, allow_equals, precedence, helper, &expr->call.args[expr->call.arg_count]);
+					expr->call.arg_count++;
 
 					if (token->kind == TOKEN_COMMA) {
 						test_expression_indent(module, token, helper, -1, true);
@@ -702,23 +729,28 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 				test_expression_indent(module, token, helper, 0, true);
 				token++;
 
-				break;
+			} break;
 
 			case TOKEN_IF:
-				expr->kind = EXPR_TERNARY_IF_ELSE;
+				*expr = (Expression){
+					.kind = EXPR_TERNARY_IF_ELSE,
+					.ternary.left = left,
+				};
+
 				test_expression_indent(module, token+1, helper, 0, true);
-				token = internal_parse_expression(module, token+1, true, precedence, helper, &expr->middle);
+				token = internal_parse_expression(module, token+1, true, precedence, helper, &expr->ternary.middle);
 
 				if (token->kind != TOKEN_ELSE)
 					errort(token, "Expected 'else' not: %\n", arg_token(token));
 
 				test_expression_indent(module, token+1, helper, 0, true);
-				token = internal_parse_expression(module, token+1, allow_equals, precedence, helper, &expr->right);
+				token = internal_parse_expression(module, token+1, allow_equals, precedence, helper, &expr->ternary.right);
 				break;
 		}
 
 		expr->begin = begin;
 		expr->end = token;
+		left = expr;
 	}
 
 	*out = left;

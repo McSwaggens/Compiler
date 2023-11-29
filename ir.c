@@ -261,11 +261,11 @@ Value convert_expression(Expression* expr, Block* block) {
 		case EXPR_FALSE: return vint(0);
 
 		case EXPR_LITERAL: {
-			return vint(expr->token->i);
+			return vint(expr->term.token->i);
 		} break;
 
 		case EXPR_FUNCTION: {
-			return vproc(expr->func->proc);
+			return vproc(expr->term.func->proc);
 		} break;
 
 		case EXPR_BASETYPE_PRIMITIVE:
@@ -278,11 +278,11 @@ Value convert_expression(Expression* expr, Block* block) {
 
 		case EXPR_IDENTIFIER_CONSTANT:
 		case EXPR_IDENTIFIER_VARIABLE: {
-			return vinst(expr->var->stack);
+			return vinst(expr->term.var->stack);
 		} break;
 
 		case EXPR_IDENTIFIER_FORMAL: {
-			return vproc(expr->func->proc);
+			return vproc(expr->term.func->proc);
 		} break;
 
 		case EXPR_UNARY_ABS:
@@ -290,11 +290,14 @@ Value convert_expression(Expression* expr, Block* block) {
 		case EXPR_UNARY_NOT:
 		case EXPR_UNARY_BIT_NOT:
 		case EXPR_UNARY_PTR:
-		case EXPR_UNARY_REF:
-		case EXPR_UNARY_SPEC_PTR:
-		case EXPR_UNARY_SPEC_ARRAY:
-		case EXPR_UNARY_SPEC_FIXED: {
+		case EXPR_UNARY_REF: {
 			assert(0);
+		} break;
+
+		case EXPR_SPEC_PTR:
+		case EXPR_SPEC_ARRAY:
+		case EXPR_SPEC_FIXED: {
+			// Interpreter?
 		} break;
 
 		case EXPR_BINARY_ADD:
@@ -337,10 +340,10 @@ Value convert_expression(Expression* expr, Block* block) {
 				[EXPR_BINARY_GREATER_OR_EQUAL] = { INSTRUCTION_SCMPGE,  INSTRUCTION_UCMPGE  },
 			};
 
-			bool unsign = is_unsigned(expr->left->type);
+			bool unsign = is_unsigned(expr->binary.left->type);
 
-			Value vleft  = convert_expression(expr->left, block);
-			Value vright = convert_expression(expr->right, block);
+			Value vleft  = convert_expression(expr->binary.left, block);
+			Value vright = convert_expression(expr->binary.right, block);
 
 			Instruction* iadd = add_instruction(block, (Instruction){
 				.kind = kindlut[expr->kind][unsign],
@@ -352,7 +355,6 @@ Value convert_expression(Expression* expr, Block* block) {
 		}
 
 		case EXPR_BINARY_DOT: {
-			Value vleft  = convert_expression(expr->left, block);
 			// @Todo
 		} break;
 
@@ -361,7 +363,7 @@ Value convert_expression(Expression* expr, Block* block) {
 		} break;
 
 		case EXPR_CALL: {
-			Value vleft  = convert_expression(expr->left, block);
+			Value vleft  = convert_expression(expr->call.function, block);
 
 			for (u32 i = 0; i < expr->call.arg_count; i++) {
 				Expression* arg = expr->call.args[i];
@@ -377,8 +379,8 @@ Value convert_expression(Expression* expr, Block* block) {
 		} break;
 
 		case EXPR_INDEX: {
-			Value varray = convert_expression(expr->left, block);
-			Value vindex = convert_expression(expr->right, block);
+			Value varray = convert_expression(expr->subscript.base, block);
+			Value vindex = convert_expression(expr->subscript.index, block);
 		} break;
 
 		case EXPR_TERNARY_IF_ELSE: {
