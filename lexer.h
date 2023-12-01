@@ -62,6 +62,7 @@ enum TokenKind {
 	TOKEN_STRUCT,
 	TOKEN_ENUM,
 
+	// @Note: CLOSE = OPEN+1
 	TOKEN_OPEN_BRACE,
 	TOKEN_CLOSE_BRACE,
 	TOKEN_OPEN_BRACKET,
@@ -139,6 +140,10 @@ struct Token {
 		float64 f64;
 		String string;
 		String identifier;
+		struct {
+			Token* closure; // Used as linked list while lexing
+			u64 comma_count;
+		};
 	};
 };
 
@@ -146,6 +151,15 @@ struct Token {
 struct TokenAux {
 	Position pos; // Only used when we're printing an error.
 };
+
+static inline
+bool is_newline(Token* token);
+
+static inline
+bool is_lspace(Token* token);
+
+static inline
+bool is_rspace(Token* token);
 
 #endif // LEXER_H
 

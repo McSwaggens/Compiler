@@ -242,9 +242,9 @@ struct Branch {
 	Code code;
 	BranchKind kind;
 	ClauseKind clause;
-	Expression* init;
+	Variable* var;
 	Expression* cond;
-	Expression* inc;
+	Expression* new;
 	Match match;
 	Branch* belse;
 	Branch* bthen;
@@ -340,8 +340,13 @@ struct Module {
 	char** usertype_names;
 };
 
+static
 Module* find_module(Token* token);
+
+static
 TokenAux* get_aux(Module* module, Token* token);
+
+static
 Position get_pos(Module* module, Token* token);
 
 #endif // AST_H

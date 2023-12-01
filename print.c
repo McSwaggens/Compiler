@@ -2,10 +2,12 @@
 #include "ast.h"
 #include "lexer.h"
 
+static
 void write_char(OutputBuffer* buffer, char c) {
 	write_output_buffer_b(buffer, c);
 }
 
+static
 void write_u64(OutputBuffer* buffer, u64 n) {
 	char tmp[20];
 	s64 i = 0;
@@ -13,6 +15,7 @@ void write_u64(OutputBuffer* buffer, u64 n) {
 	write_output_buffer(buffer, tmp+20-i, i);
 }
 
+static
 void write_s64(OutputBuffer* buffer, s64 n) {
 	if (n < 0) {
 		write_char(buffer, '-');
@@ -23,6 +26,7 @@ void write_s64(OutputBuffer* buffer, s64 n) {
 	write_u64(buffer, (u64)n);
 }
 
+static
 float64 get_lowest_digit_f64(float64 f, float64 base) {
 	float64 result = f / base;
 	result -= floor_f64(result);
@@ -30,6 +34,7 @@ float64 get_lowest_digit_f64(float64 f, float64 base) {
 	return result;
 }
 
+static
 void write_f64(OutputBuffer* buffer, float64 f) {
 	if (is_nan_f64(f)) {
 		write_output_buffer(buffer, "NaN", 3);
@@ -78,23 +83,28 @@ void write_f64(OutputBuffer* buffer, float64 f) {
 	write_output_buffer(buffer, tmp, i);
 }
 
+static
 void write_f32(OutputBuffer* buffer, float32 f) {
 	write_f64(buffer, (float64)f);
 }
 
+static
 void write_string(OutputBuffer* buffer, String string) {
 	if (string.data)
 		write_output_buffer(buffer, string.data, string.length);
 }
 
+static
 void write_cstring(OutputBuffer* buffer, char* s) {
 	write_string(buffer, tostr(s));
 }
 
+static
 void write_bool(OutputBuffer* buffer, bool b) {
 	write_string(buffer, tostr(b ? "true" : "false"));
 }
 
+static
 void write_token_kind(OutputBuffer* buffer, TokenKind kind) {
 	char* str;
 	switch (kind) {
@@ -210,6 +220,7 @@ void write_token_kind(OutputBuffer* buffer, TokenKind kind) {
 	write_string(buffer, tostr(str));
 }
 
+static
 void write_token(OutputBuffer* buffer, Token* token) {
 	switch (token->kind) {
 		case TOKEN_IDENTIFIER_VARIABLE:
@@ -252,6 +263,7 @@ void write_token(OutputBuffer* buffer, Token* token) {
 	}
 }
 
+static
 void write_expression_kind(OutputBuffer* buffer, ExpressionKind kind) {
 	char* str;
 	switch (kind) {
@@ -311,6 +323,7 @@ void write_expression_kind(OutputBuffer* buffer, ExpressionKind kind) {
 	write_string(buffer, tostr(str));
 }
 
+static
 void write_expression(OutputBuffer* buffer, Expression* expr) {
 	if (!expr) {
 		write_cstring(buffer, "null");
@@ -461,7 +474,8 @@ void write_expression(OutputBuffer* buffer, Expression* expr) {
 	}
 }
 
-void WriteStatementKind(OutputBuffer* buffer, StatementKind kind) {
+static
+void write_statement_kind(OutputBuffer* buffer, StatementKind kind) {
 	switch (kind) {
 		case STATEMENT_ASSIGNMENT:         write_cstring(buffer, "STATEMENT_ASSIGNMENT");         break;
 		case STATEMENT_ASSIGNMENT_LSH:     write_cstring(buffer, "STATEMENT_ASSIGNMENT_LSH");     break;
@@ -486,11 +500,12 @@ void WriteStatementKind(OutputBuffer* buffer, StatementKind kind) {
 	}
 }
 
-void WriteStatement(OutputBuffer* buffer, Statement* statement) {
+static
+void write_statement(OutputBuffer* buffer, Statement* statement) {
 	if (!statement)
 		write_cstring(buffer, "null");
 
-	WriteStatementKind(buffer, statement->kind);
+	write_statement_kind(buffer, statement->kind);
 
 	switch (statement->kind) {
 		case STATEMENT_ASSIGNMENT_LSH:
@@ -567,6 +582,20 @@ void WriteStatement(OutputBuffer* buffer, Statement* statement) {
 	}
 }
 
+static
+void write_value(OutputBuffer* buffer, Value value) {
+	switch (value.kind) {
+		case VALUE_NONE:        printbuff(buffer, "VALUE_NONE"); return;
+		case VALUE_BLOCK:       printbuff(buffer, "block%", arg_u32(value.block->id)); return;
+		case VALUE_PROCEDURE:   printbuff(buffer, "proc_%", arg_string(value.procedure->name)); return;
+		case VALUE_INSTRUCTION: printbuff(buffer, "\\%%",   arg_u32(value.instruction->id)); return;
+		case VALUE_INT:         printbuff(buffer, "int %",  arg_s64(value.i));   return;
+		case VALUE_F32:         printbuff(buffer, "f32 %",  arg_f32(value.f32)); return;
+		case VALUE_F64:         printbuff(buffer, "f64 %",  arg_f64(value.f64)); return;
+	}
+}
+
+static
 void print_argument(OutputBuffer* buffer, FormatArg arg) {
 	switch (arg.kind) {
 		case PRINT_ARG_BOOL:            write_bool(buffer, arg.b); return;
@@ -593,11 +622,14 @@ void print_argument(OutputBuffer* buffer, FormatArg arg) {
 		case PRINT_ARG_EXPRESSION:      write_expression(buffer, arg.expr); return;
 		case PRINT_ARG_EXPRESSION_KIND: write_expression_kind(buffer, arg.expr_kind); return;
 
-		case PRINT_ARG_STATEMENT:       WriteStatement(buffer, arg.statement); return;
-		case PRINT_ARG_STATEMENT_KIND:  WriteStatementKind(buffer, arg.statement_kind); return;
+		case PRINT_ARG_STATEMENT:       write_statement(buffer, arg.statement); return;
+		case PRINT_ARG_STATEMENT_KIND:  write_statement_kind(buffer, arg.statement_kind); return;
+
+		case PRINT_ARG_VALUE:           write_value(buffer, arg.value); return;
 	}
 }
 
+static
 void internal_print(OutputBuffer* buffer, const char* format, __builtin_va_list args) {
 	// const char* format_begin = format;
 	const char* left_cursor = format;
@@ -636,6 +668,7 @@ void internal_print(OutputBuffer* buffer, const char* format, __builtin_va_list 
 	flush_output_buffer(buffer);
 }
 
+static
 void print(const char* format, ...) {
 	__builtin_va_list args;
 	__builtin_va_start(args, format);
@@ -643,6 +676,7 @@ void print(const char* format, ...) {
 	__builtin_va_end(args);
 }
 
+static
 void printbuff(OutputBuffer* buffer, const char* format, ...) {
 	__builtin_va_list args;
 	__builtin_va_start(args, format);
@@ -650,6 +684,7 @@ void printbuff(OutputBuffer* buffer, const char* format, ...) {
 	__builtin_va_end(args);
 }
 
+static
 void error(String file, Position pos, const char* format, ...) {
 	print("%:%:%: error: ",
 		arg_string(file),
@@ -665,6 +700,7 @@ void error(String file, Position pos, const char* format, ...) {
 	exit_program();
 }
 
+static
 void errort(Token* token, const char* format, ...) {
 	Module* module = find_module(token);
 	Position pos = get_pos(module, token);

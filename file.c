@@ -1,4 +1,4 @@
-FileHandle32 open_file(String path, FileMode mode, FileAccessFlags access_flags) {
+static FileHandle32 open_file(String path, FileMode mode, FileAccessFlags access_flags) {
 	if (path.length >= 4096)
 		return FILE_HANDLE_INVALD;
 
@@ -31,11 +31,11 @@ FileHandle32 open_file(String path, FileMode mode, FileAccessFlags access_flags)
 	return handle;
 }
 
-void close_file(FileHandle32 handle) {
+static void close_file(FileHandle32 handle) {
 	system_call(LINUX_SYSCALL_CLOSE, handle, 0, 0, 0, 0, 0);
 }
 
-s64 query_file_size(FileHandle32 handle) {
+static s64 query_file_size(FileHandle32 handle) {
 	struct Status {
 		u64 dev;
 		u64 ino;
@@ -65,15 +65,15 @@ s64 query_file_size(FileHandle32 handle) {
 	return status.size;
 }
 
-u64 read_file(FileHandle32 handle, void* dest, u64 size) {
+static u64 read_file(FileHandle32 handle, void* dest, u64 size) {
 	return system_call(LINUX_SYSCALL_READ, handle, (s64)dest, size, 0, 0, 0);
 }
 
-void write_file(FileHandle32 handle, const void* data, u64 length) {
+static void write_file(FileHandle32 handle, const void* data, u64 length) {
 	system_call(LINUX_SYSCALL_WRITE, handle, (s64)data, length, 0, 0, 0);
 }
 
-FileData load_file(FileHandle32 handle, u32 padding) {
+static FileData load_file(FileHandle32 handle, u32 padding) {
 	FileData result = { 0 };
 
 	u64 file_size = query_file_size(handle);
@@ -84,7 +84,7 @@ FileData load_file(FileHandle32 handle, u32 padding) {
 	return result;
 }
 
-bool does_file_exist(String path) {
+static bool does_file_exist(String path) {
 	char cpath[path.length+1];
 	copy(cpath, path.data, path.length);
 	cpath[path.length] = 0;
@@ -92,7 +92,7 @@ bool does_file_exist(String path) {
 	return system_call(LINUX_SYSCALL_ACCESS, (s64)cpath, path.length, 0, 0, 0, 0);
 }
 
-void flush_output_buffer(OutputBuffer* buffer) {
+static void flush_output_buffer(OutputBuffer* buffer) {
 	if (!buffer->head)
 		return;
 
@@ -102,7 +102,7 @@ void flush_output_buffer(OutputBuffer* buffer) {
 	buffer->head = 0;
 }
 
-void write_output_buffer(OutputBuffer* buffer, const byte* data, u64 length) {
+static void write_output_buffer(OutputBuffer* buffer, const byte* data, u64 length) {
 	buffer->written_bytes += length;
 
 	if (buffer->head + length < OUTPUT_BUFFER_SIZE) {
@@ -127,7 +127,7 @@ void write_output_buffer(OutputBuffer* buffer, const byte* data, u64 length) {
 	}
 }
 
-void write_output_buffer_b(OutputBuffer* buffer, byte b) {
+static void write_output_buffer_b(OutputBuffer* buffer, byte b) {
 	if (buffer->head >= OUTPUT_BUFFER_SIZE)
 		flush_output_buffer(buffer);
 

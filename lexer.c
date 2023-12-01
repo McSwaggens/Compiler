@@ -64,6 +64,22 @@ Position make_pos(Lexer* lexer, char* p) {
 	};
 }
 
+static inline
+bool is_newline(Token* token) {
+	return token->flags & NEWLINE;
+}
+
+static inline
+bool is_lspace(Token* token) {
+	return token->flags & LSPACED;
+}
+
+static inline
+bool is_rspace(Token* token) {
+	return token->flags & RSPACED;
+}
+
+static
 s64 decode_binary_literal_to_int(char* begin, char* end) {
 	s64 result = 0;
 
@@ -80,6 +96,7 @@ s64 decode_binary_literal_to_int(char* begin, char* end) {
 	return result;
 }
 
+static
 s64 decode_decimal_literal_to_int(char* begin, char* end) {
 	s64 result = 0;
 
@@ -99,6 +116,7 @@ s64 decode_decimal_literal_to_int(char* begin, char* end) {
 	return result;
 }
 
+static
 s8 decode_digit(char c) {
 	return (s8[256]){
 		['0'] = 0,   ['1'] = 1,   ['2'] = 2,   ['3'] = 3,   ['4'] = 4,
@@ -108,6 +126,7 @@ s8 decode_digit(char c) {
 	}[c];
 }
 
+static
 s64 decode_hex_literal_to_int(char* begin, char* end) {
 	s64 result = 0;
 
@@ -127,6 +146,7 @@ s64 decode_hex_literal_to_int(char* begin, char* end) {
 	return result;
 }
 
+static
 s64 decode_int(LiteralComponent whole, Base base) {
 	switch (base) {
 		case BASE_BINARY:       return decode_binary_literal_to_int(whole.begin, whole.end);
@@ -136,6 +156,7 @@ s64 decode_int(LiteralComponent whole, Base base) {
 	}
 }
 
+static
 float64 decode_float(LiteralComponent whole, LiteralComponent fract, Base base) {
 	float64 val = 0.0;
 	float64 mul;
@@ -168,6 +189,7 @@ float64 decode_float(LiteralComponent whole, LiteralComponent fract, Base base) 
 	return val;
 }
 
+static
 char* parse_literal_qualifier(char* p, LiteralQualifier* out) {
 	LiteralQualifier qualifier = { 0 };
 	char* backup = p;
@@ -292,6 +314,7 @@ char* parse_literal_qualifier(char* p, LiteralQualifier* out) {
 	return p;
 }
 
+static
 LiteralComponent parse_component(char* p) {
 	Base base = BASE_NONE;
 	LiteralComponent component = { 0 };
@@ -336,6 +359,7 @@ LiteralComponent parse_component(char* p) {
 	return component;
 }
 
+static
 bool keep_fract(LiteralComponent whole, LiteralComponent fract) {
 	if (is_digit(whole.end[1]))
 		return true;
@@ -346,6 +370,7 @@ bool keep_fract(LiteralComponent whole, LiteralComponent fract) {
 	return false;
 }
 
+static
 String base_to_string(Base base) {
 	static char* lut[] = {
 		[BASE_NONE]        = "BASE_NONE",
@@ -357,6 +382,7 @@ String base_to_string(Base base) {
 	return tostr(lut[base]);
 }
 
+static
 String format_to_string(LiteralFormat format) {
 	static char* lut[] = {
 		[LITERAL_FORMAT_UNSPECIFIED]      = "LITERAL_FORMAT_UNSPECIFIED",
@@ -368,6 +394,7 @@ String format_to_string(LiteralFormat format) {
 	return tostr(lut[format]);
 }
 
+static
 void print_qualifier(LiteralQualifier qualifier) {
 	print("      present = %\n", arg_bool(qualifier.present));
 	print("      certain = %\n", arg_bool(qualifier.certain));
@@ -377,6 +404,7 @@ void print_qualifier(LiteralQualifier qualifier) {
 	print("      scalar  = %\n", arg_u64(qualifier.scalar));
 }
 
+static
 void print_component(LiteralComponent comp) {
 	print("    raw  = \"%\"\n", arg_string((String){ comp.begin, comp.end-comp.begin }));
 	print("    base = %\n",     arg_string(base_to_string(comp.base)));
@@ -384,6 +412,7 @@ void print_component(LiteralComponent comp) {
 	print_qualifier(comp.qualifier);
 }
 
+static
 void parse_literal(Lexer* lexer) {
 	Token* token = lexer->head;
 
@@ -513,6 +542,7 @@ void parse_literal(Lexer* lexer) {
 	lexer->cursor = p;
 }
 
+static
 bool test_if_hex(char* p) {
 	while (is_hex(*p) || *p == '_') p++;
 
@@ -536,6 +566,7 @@ bool test_if_hex(char* p) {
 	return true;
 }
 
+static
 void parse_identifier(Lexer* lexer) {
 	Token* token = lexer->head;
 	char* begin = lexer->cursor;
@@ -612,6 +643,7 @@ bool test_keyword(Lexer* lexer, const char* keyword, TokenKind kind) {
 	return true;
 }
 
+static
 void parse_string(Lexer* lexer) {
 	Token* token = lexer->head;
 	char* begin = lexer->cursor;
@@ -686,6 +718,7 @@ void parse_string(Lexer* lexer) {
 	lexer->cursor = p;
 }
 
+static
 bool is_whitespace(char c) {
 	switch (c) {
 		case ' ':
@@ -700,6 +733,7 @@ bool is_whitespace(char c) {
 	}
 }
 
+static
 void skip_whitespace(Lexer* lexer) {
 	Token* token = lexer->head;
 	char* p = lexer->cursor;
@@ -733,6 +767,20 @@ void skip_whitespace(Lexer* lexer) {
 	lexer->cursor = p;
 }
 
+static
+TokenKind get_matching_enclosure_kind(TokenKind kind) {
+	switch (kind) {
+		case TOKEN_OPEN_PAREN:    return TOKEN_CLOSE_PAREN;
+		case TOKEN_OPEN_BRACE:    return TOKEN_CLOSE_BRACE;
+		case TOKEN_OPEN_BRACKET:  return TOKEN_CLOSE_BRACKET;
+		case TOKEN_CLOSE_PAREN:   return TOKEN_OPEN_PAREN;
+		case TOKEN_CLOSE_BRACE:   return TOKEN_OPEN_BRACE;
+		case TOKEN_CLOSE_BRACKET: return TOKEN_OPEN_BRACKET;
+		default: assert_unreachable();
+	}
+}
+
+static
 void lex(Module* module) {
 	FileHandle32 file_handle = open_file(module->file, FILE_MODE_OPEN, FILE_ACCESS_FLAG_READ);
 	FileData file = load_file(file_handle, 16);
@@ -752,6 +800,8 @@ void lex(Module* module) {
 	module->tokens = tokens;
 	module->tokens_end = tokens+maxlen;
 	module->auxs   = auxs;
+
+	Token* open_token = null;
 
 	Lexer lexer = {
 		.cursor       = file.data,
@@ -947,7 +997,6 @@ void lex(Module* module) {
 				                                     { lexer.head->kind = TOKEN_DOT;               lexer.cursor += 1; break; }
 
 			case '\\':                               { lexer.head->kind = TOKEN_BACK_SLASH;        lexer.cursor += 1; break; }
-			case ',':                                { lexer.head->kind = TOKEN_COMMA;             lexer.cursor += 1; break; }
 			case ':':                                { lexer.head->kind = TOKEN_COLON;             lexer.cursor += 1; break; }
 			case ';':                                { lexer.head->kind = TOKEN_SEMICOLON;         lexer.cursor += 1; break; }
 			case '=':                                { lexer.head->kind = TOKEN_EQUAL;             lexer.cursor += 1; break; }
@@ -956,12 +1005,72 @@ void lex(Module* module) {
 			case '#':                                { lexer.head->kind = TOKEN_HASH;              lexer.cursor += 1; break; }
 			case '$':                                { lexer.head->kind = TOKEN_DOLLAR;            lexer.cursor += 1; break; }
 			case '`':                                { lexer.head->kind = TOKEN_BACKTICK;          lexer.cursor += 1; break; }
-			case '[':                                { lexer.head->kind = TOKEN_OPEN_BRACKET;      lexer.cursor += 1; break; }
-			case ']':                                { lexer.head->kind = TOKEN_CLOSE_BRACKET;     lexer.cursor += 1; break; }
-			case '{':                                { lexer.head->kind = TOKEN_OPEN_BRACE;        lexer.cursor += 1; break; }
-			case '}':                                { lexer.head->kind = TOKEN_CLOSE_BRACE;       lexer.cursor += 1; break; }
-			case '(':                                { lexer.head->kind = TOKEN_OPEN_PAREN;        lexer.cursor += 1; break; }
-			case ')':                                { lexer.head->kind = TOKEN_CLOSE_PAREN;       lexer.cursor += 1; break; }
+			case ',': {
+				lexer.head->kind = TOKEN_COMMA;
+				lexer.cursor += 1;
+
+				if (open_token) {
+					open_token->comma_count++;
+				}
+			} break;
+
+			case '(': {
+				lexer.head->kind = TOKEN_OPEN_PAREN;
+				lexer.head->closure = open_token;
+				lexer.head->comma_count = 0;
+				open_token = lexer.head;
+				lexer.cursor += 1;
+			} break;
+
+			case '{': {
+				lexer.head->kind = TOKEN_OPEN_BRACE;
+				lexer.head->closure = open_token;
+				lexer.head->comma_count = 0;
+				open_token = lexer.head;
+				lexer.cursor += 1;
+			} break;
+
+			case '[': {
+				lexer.head->kind = TOKEN_OPEN_BRACKET;
+				lexer.head->closure = open_token;
+				lexer.head->comma_count = 0;
+				open_token = lexer.head;
+				lexer.cursor += 1;
+			} break;
+
+			TokenKind expected_opener_kind;
+
+			case ')':
+				lexer.head->kind = TOKEN_CLOSE_PAREN;
+				expected_opener_kind = TOKEN_OPEN_PAREN;
+				goto GOTO_CLOSURE;
+
+			case '}':
+				lexer.head->kind = TOKEN_CLOSE_BRACE;
+				expected_opener_kind = TOKEN_OPEN_BRACE;
+				goto GOTO_CLOSURE;
+
+			case ']':
+				lexer.head->kind = TOKEN_CLOSE_BRACKET;
+				expected_opener_kind = TOKEN_OPEN_BRACKET;
+				goto GOTO_CLOSURE;
+
+			GOTO_CLOSURE: {
+				lexer.cursor += 1;
+
+				if (!open_token) {
+					break;
+				}
+
+				if (open_token->kind != expected_opener_kind) {
+					errort(lexer.head, "Expected closure: '%', not: '%'",
+						arg_token_kind(get_matching_enclosure_kind(open_token->kind)),
+						arg_token_kind(lexer.head->kind)
+					);
+				}
+
+				open_token = open_token->closure;
+			} break;
 
 			case '"': {
 				parse_string(&lexer);
@@ -993,6 +1102,12 @@ void lex(Module* module) {
 		print("%| % | %\n", arg_cstring((token->flags & NEWLINE) ? "\n--" : "  "), arg_u16(token->indent), arg_token(token));
 	}
 	print("\n");
+
+	while (open_token) {
+		Token* next = open_token->closure;
+		open_token->closure = null;
+		open_token = next;
+	}
 
 	// u64 end_timer = read_timestamp_counter();
 	// print("Lexer took % cycles.\n",

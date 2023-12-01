@@ -24,6 +24,7 @@ Module* get_module(ModuleIndex16 module_index) {
 	return module_store.modules[module_index];
 }
 
+static
 Module* make_module(String file) {
 	if (module_store.count == module_store.capacity) {
 		module_store.capacity <<= 2;
@@ -46,6 +47,7 @@ Module* make_module(String file) {
 
 // @WARNING: VERY SLOW FUNCTION.
 // @WARNING: ONLY USE IN COLD PATH (Error)
+static
 Module* find_module(Token* token) {
 	for (u32 i = 0; i < module_store.count; i++) {
 		Module* module = module_store.modules[i];
@@ -57,15 +59,18 @@ Module* find_module(Token* token) {
 	return null;
 }
 
+static
 TokenAux* get_aux(Module* module, Token* token) {
 	u32 index = token - module->tokens;
 	return &module->auxs[index];
 }
 
+static
 Position get_pos(Module* module, Token* token) {
 	return get_aux(module, token)->pos;
 }
 
+static
 void init_module_store(void) {
 	module_store.capacity = 64;
 	module_store.count    = 0;
@@ -82,7 +87,7 @@ int main(int argc, char* argv[]) {
 
 	Module* module = make_module(tostr("test.q"));
 	lex(module);
-	parse(module);
+	parse_module(module);
 	scan_module(module);
 	preconvert_module(module);
 	convert_module(module);

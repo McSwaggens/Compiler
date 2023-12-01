@@ -76,27 +76,27 @@ struct Type {
 	XTable xtable;
 };
 
-TypeKind get_type_kind(TypeID id);
-u64 get_type_index(TypeID id);
-Type* get_type_ptr(TypeID id); // @Warning: Pointer may be invalidated by NewType function. Use carefully!
-Type get_type(TypeID id);
-void update_type(TypeID id, Type type);
-u64 get_type_size(TypeID id);
-u64 get_tuple_type_length(TypeID type);
-u64 get_fixed_type_length(TypeID type);
-void init_type_system(void);
-void xtable_push(TypeID typeid, TypeExtent ext);
-TypeID new_type(TypeKind kind);
-TypeID get_pointer_type(TypeID typeid);
-TypeID get_ref_type(TypeID subtype);
-TypeID get_array_type(TypeID typeid);
-TypeID get_function_type(TypeID input, TypeID output);
-TypeID get_tuple_type(TypeID* types, u64 count);
-TypeID get_fixed_type(TypeID typeid, u64 length);
-bool is_int(TypeID type);
-bool is_unsigned(TypeID type);
-bool is_signed(TypeID type);
-bool is_float(TypeID type);
-bool is_ref(TypeID type);
+static TypeKind get_type_kind(TypeID id);
+static u64 get_type_index(TypeID id);
+static Type* get_type_ptr(TypeID id); // @Warning: Pointer may be invalidated by NewType function. Use carefully!
+static Type get_type(TypeID id);
+static void update_type(TypeID id, Type type);
+static u64 get_type_size(TypeID id);
+static u64 get_tuple_type_length(TypeID type);
+static u64 get_fixed_type_length(TypeID type);
+static void init_type_system(void);
+static void xtable_push(TypeID typeid, TypeExtent ext);
+static TypeID new_type(TypeKind kind);
+static TypeID get_pointer_type(TypeID typeid);
+static TypeID get_ref_type(TypeID subtype);
+static TypeID get_array_type(TypeID typeid);
+static TypeID get_function_type(TypeID input, TypeID output);
+static TypeID get_tuple_type(TypeID* types, u64 count);
+static TypeID get_fixed_type(TypeID typeid, u64 length);
+static bool is_int(TypeID type);
+static bool is_unsigned(TypeID type);
+static bool is_signed(TypeID type);
+static bool is_float(TypeID type);
+static bool is_ref(TypeID type);
 #endif // TYPE_H
 

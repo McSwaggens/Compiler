@@ -1,4 +1,5 @@
 /.kakrc
 /.vscode
 /compiler
+/compiler.asm
 /tags

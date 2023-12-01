@@ -43,16 +43,16 @@ typedef struct FileData {
 
 static OutputBuffer standard_output_buffer = { .file_handle = FILE_HANDLE_UNIX_STANDARD_OUTPUT };
 
-FileHandle32 open_file(String path, FileMode mode, FileAccessFlags access_flags);
-FileData load_file(FileHandle32 handle, u32 padding);
-void close_file(FileHandle32 handle);
-s64  query_file_size(FileHandle32 handle);
-u64  read_file(FileHandle32 handle, void* dest, u64 size);
-void write_file(FileHandle32 handle, const void* data, u64 length);
-bool does_file_exist(String path);
-void flush_output_buffer(OutputBuffer* buffer);
-void write_output_buffer(OutputBuffer* buffer, const byte* data, u64 length);
-void write_output_buffer_b(OutputBuffer* buffer, byte b);
+static FileHandle32 open_file(String path, FileMode mode, FileAccessFlags access_flags);
+static FileData load_file(FileHandle32 handle, u32 padding);
+static void close_file(FileHandle32 handle);
+static s64  query_file_size(FileHandle32 handle);
+static u64  read_file(FileHandle32 handle, void* dest, u64 size);
+static void write_file(FileHandle32 handle, const void* data, u64 length);
+static bool does_file_exist(String path);
+static void flush_output_buffer(OutputBuffer* buffer);
+static void write_output_buffer(OutputBuffer* buffer, const byte* data, u64 length);
+static void write_output_buffer_b(OutputBuffer* buffer, byte b);
 
 #endif // FILE_H
 

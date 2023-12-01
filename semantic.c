@@ -1,6 +1,7 @@
 #include "semantic.h"
 #include "ast.h"
 
+static
 void scan_assignment(Module* module, Statement* statement, Scope* scope) {
 	Assignment* assign = &statement->assign;
 
@@ -24,16 +25,18 @@ void scan_assignment(Module* module, Statement* statement, Scope* scope) {
 	}
 }
 
+static
 void scan_match(Module* module, Match* match, Scope* scope) {
 }
 
+static
 void scan_branch(Module* module, Branch* branch, Scope* scope) {
-	if (branch->init) scan_expression(module, branch->init, scope);
 	if (branch->cond) scan_expression(module, branch->cond, scope);
-	if (branch->inc)  scan_expression(module, branch->inc, scope);
+	if (branch->new)  scan_expression(module, branch->new,  scope);
 	scan_code(module, &branch->code);
 }
 
+static
 void scan_controlflow(Module* module, ControlFlow* controlflow, Scope* scope) {
 	for (u64 i = 0; i < controlflow->branch_count; i++) {
 		Branch* branch = &controlflow->branches[i];
@@ -41,6 +44,7 @@ void scan_controlflow(Module* module, ControlFlow* controlflow, Scope* scope) {
 	}
 }
 
+static
 Function* find_function(Module* module, char* name) {
 	for (u64 i = 0; i < module->function_count; i++) {
 		Function* func = &module->functions[i];
@@ -54,6 +58,7 @@ Function* find_function(Module* module, char* name) {
 	return null;
 }
 
+static
 Variable* find_variable(Scope* scope, char* name) {
 	for (u64 i = 0; i < scope->variable_count; i++) {
 		Variable* var = scope->variables[i];
@@ -73,6 +78,7 @@ Variable* find_variable(Scope* scope, char* name) {
 	return null;
 }
 
+static
 void scan_identifier(Module* module, Expression* expr, Scope* scope) {
 	Token* ident = expr->term.token;
 	bool isconst = ident->kind != TOKEN_IDENTIFIER_VARIABLE;
@@ -90,6 +96,7 @@ void scan_identifier(Module* module, Expression* expr, Scope* scope) {
 	expr->term.var = var;
 }
 
+static
 void scan_call(Module* module, Expression* expr, Scope* scope) {
 	Expression* func_expr = expr->call.function;
 
@@ -111,6 +118,7 @@ void scan_call(Module* module, Expression* expr, Scope* scope) {
 	func_expr->term.func = func;
 }
 
+static
 void scan_expression(Module* module, Expression* expr, Scope* scope) {
 	switch (expr->kind) {
 		case EXPR_NULL:
@@ -201,6 +209,7 @@ void scan_expression(Module* module, Expression* expr, Scope* scope) {
 	}
 }
 
+static
 void scan_vardecl(Module* module, Variable* var, Scope* scope) {
 	assert(var->type_expr || var->init_expr);
 
@@ -211,6 +220,7 @@ void scan_vardecl(Module* module, Variable* var, Scope* scope) {
 		scan_expression(module, var->init_expr, scope);
 }
 
+static
 void scan_statement(Module* module, Statement* statement, Code* code) {
 	switch (statement->kind) {
 		case STATEMENT_ASSIGNMENT: {
@@ -261,6 +271,7 @@ void scan_statement(Module* module, Statement* statement, Code* code) {
 	}
 }
 
+static
 void scan_code(Module* module, Code* code) {
 	scan_scope(module, &code->scope);
 
@@ -270,12 +281,14 @@ void scan_code(Module* module, Code* code) {
 	}
 }
 
+static
 void scan_scope(Module* module, Scope* scope) {
 	for (u64 i = 0; i < scope->variable_count; i++) {
 		// Variable* var = scope->variables[i];
 	}
 }
 
+static
 void scan_function(Module* module, Function* func) {
 	for (u32 i = 0; i < func->param_count; i++) {
 		Variable* var = &func->params[i];
@@ -285,6 +298,7 @@ void scan_function(Module* module, Function* func) {
 	scan_code(module, &func->code);
 }
 
+static
 void scan_module(Module* module) {
 	module = module;
 	scan_scope(module, &module->scope);

@@ -1,12 +1,7 @@
-struct Foo:
-	a : int
-	b : int
-
-Test(x: int, y: int) -> int:
-	z := x + y
-	return z
-
+Bar():
 
 Foo():
-	Test(1, 2)
+	foo : int = 0
+	bar : int = 1
 
+	for i := 0, 100, 1:

@@ -5,10 +5,12 @@
 #include "ast.h"
 #include "lexer.h"
 #include "file.h"
+#include "ir.h"
 
-void printbuff(OutputBuffer* buffer, const char* format, ...);
-void print(const char* format, ...);
-void error(String file, Position position, const char* format, ...);
+static void printbuff(OutputBuffer* buffer, const char* format, ...);
+static void print(const char* format, ...);
+static void error(String file, Position pos, const char* format, ...);
+static void errort(Token* token, const char* format, ...);
 
 typedef enum FormatArgumentKind {
 	PRINT_ARG_BOOL,
@@ -31,6 +33,7 @@ typedef enum FormatArgumentKind {
 	PRINT_ARG_EXPRESSION_KIND,
 	PRINT_ARG_STATEMENT,
 	PRINT_ARG_STATEMENT_KIND,
+	PRINT_ARG_VALUE,
 } FormatArgumentKind;
 
 typedef struct FormatArg {
@@ -62,30 +65,32 @@ typedef struct FormatArg {
 		ExpressionKind expr_kind;
 		Statement* statement;
 		StatementKind statement_kind;
+		Value value;
 	};
 } FormatArg;
 
 // Use _Generic from C11?
-FormatArg arg_bool(bool v)                                 { return (FormatArg){ PRINT_ARG_BOOL,            .b              = v }; }
-FormatArg arg_s8(s8 v)                                     { return (FormatArg){ PRINT_ARG_INT8,            .s8             = v }; }
-FormatArg arg_s16(s16 v)                                   { return (FormatArg){ PRINT_ARG_INT16,           .s16            = v }; }
-FormatArg arg_s32(s32 v)                                   { return (FormatArg){ PRINT_ARG_INT32,           .s32            = v }; }
-FormatArg arg_s64(s64 v)                                   { return (FormatArg){ PRINT_ARG_INT64,           .s64            = v }; }
-FormatArg arg_u8(u8 v)                                     { return (FormatArg){ PRINT_ARG_UINT8,           .u8             = v }; }
-FormatArg arg_u16(u16 v)                                   { return (FormatArg){ PRINT_ARG_UINT16,          .u16            = v }; }
-FormatArg arg_u32(u32 v)                                   { return (FormatArg){ PRINT_ARG_UINT32,          .u32            = v }; }
-FormatArg arg_u64(u64 v)                                   { return (FormatArg){ PRINT_ARG_UINT64,          .u64            = v }; }
-FormatArg arg_f32(float32 v)                               { return (FormatArg){ PRINT_ARG_FLOAT32,         .f32            = v }; }
-FormatArg arg_f64(float64 v)                               { return (FormatArg){ PRINT_ARG_FLOAT64,         .f64            = v }; }
-FormatArg arg_char(char c)                                 { return (FormatArg){ PRINT_ARG_CHAR,            .c              = c }; }
-FormatArg arg_string(String s)                             { return (FormatArg){ PRINT_ARG_STRING,          .str            = s }; }
-FormatArg arg_cstring(char* s)                             { return (FormatArg){ PRINT_ARG_CSTRING,         .s              = s }; }
-FormatArg arg_token(Token* token)                          { return (FormatArg){ PRINT_ARG_TOKEN,           .token          = token}; }
-FormatArg arg_token_kind(TokenKind kind)                   { return (FormatArg){ PRINT_ARG_TOKEN_KIND,      .token_kind     = kind }; }
-FormatArg arg_expression_kind(ExpressionKind kind)         { return (FormatArg){ PRINT_ARG_EXPRESSION_KIND, .expr_kind      = kind }; }
-FormatArg arg_expression(Expression* expr)                 { return (FormatArg){ PRINT_ARG_EXPRESSION,      .expr           = expr }; }
-FormatArg arg_statement(Statement* statement)              { return (FormatArg){ PRINT_ARG_STATEMENT,       .statement      = statement }; }
-FormatArg arg_statement_kind(StatementKind statement_kind) { return (FormatArg){ PRINT_ARG_STATEMENT_KIND,  .statement_kind = statement_kind }; }
+static FormatArg arg_bool(bool v)                                 { return (FormatArg){ PRINT_ARG_BOOL,            .b              = v }; }
+static FormatArg arg_s8(s8 v)                                     { return (FormatArg){ PRINT_ARG_INT8,            .s8             = v }; }
+static FormatArg arg_s16(s16 v)                                   { return (FormatArg){ PRINT_ARG_INT16,           .s16            = v }; }
+static FormatArg arg_s32(s32 v)                                   { return (FormatArg){ PRINT_ARG_INT32,           .s32            = v }; }
+static FormatArg arg_s64(s64 v)                                   { return (FormatArg){ PRINT_ARG_INT64,           .s64            = v }; }
+static FormatArg arg_u8(u8 v)                                     { return (FormatArg){ PRINT_ARG_UINT8,           .u8             = v }; }
+static FormatArg arg_u16(u16 v)                                   { return (FormatArg){ PRINT_ARG_UINT16,          .u16            = v }; }
+static FormatArg arg_u32(u32 v)                                   { return (FormatArg){ PRINT_ARG_UINT32,          .u32            = v }; }
+static FormatArg arg_u64(u64 v)                                   { return (FormatArg){ PRINT_ARG_UINT64,          .u64            = v }; }
+static FormatArg arg_f32(float32 v)                               { return (FormatArg){ PRINT_ARG_FLOAT32,         .f32            = v }; }
+static FormatArg arg_f64(float64 v)                               { return (FormatArg){ PRINT_ARG_FLOAT64,         .f64            = v }; }
+static FormatArg arg_char(char c)                                 { return (FormatArg){ PRINT_ARG_CHAR,            .c              = c }; }
+static FormatArg arg_string(String s)                             { return (FormatArg){ PRINT_ARG_STRING,          .str            = s }; }
+static FormatArg arg_cstring(char* s)                             { return (FormatArg){ PRINT_ARG_CSTRING,         .s              = s }; }
+static FormatArg arg_token(Token* token)                          { return (FormatArg){ PRINT_ARG_TOKEN,           .token          = token}; }
+static FormatArg arg_token_kind(TokenKind kind)                   { return (FormatArg){ PRINT_ARG_TOKEN_KIND,      .token_kind     = kind }; }
+static FormatArg arg_expression_kind(ExpressionKind kind)         { return (FormatArg){ PRINT_ARG_EXPRESSION_KIND, .expr_kind      = kind }; }
+static FormatArg arg_expression(Expression* expr)                 { return (FormatArg){ PRINT_ARG_EXPRESSION,      .expr           = expr }; }
+static FormatArg arg_statement(Statement* statement)              { return (FormatArg){ PRINT_ARG_STATEMENT,       .statement      = statement }; }
+static FormatArg arg_statement_kind(StatementKind statement_kind) { return (FormatArg){ PRINT_ARG_STATEMENT_KIND,  .statement_kind = statement_kind }; }
+static FormatArg arg_value(Value value)                           { return (FormatArg){ PRINT_ARG_VALUE,           .value          = value }; }
 
 
 #endif // PRINT_H

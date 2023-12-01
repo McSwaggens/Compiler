@@ -135,9 +135,9 @@ struct Procedure {
 	UserStore users;
 };
 
-void init_ir(void);
-void convert_function(Function* func);
-void preconvert_module(Module* module);
-void convert_module(Module* module);
+static void init_ir(void);
+static void convert_function(Function* func);
+static void preconvert_module(Module* module);
+static void convert_module(Module* module);
 
 #endif

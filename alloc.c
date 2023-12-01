@@ -2,6 +2,7 @@
 
 // ------------------------------------ //
 
+static
 void* alloc_virtual_page(u64 size) {
 	void* page = (void*)system_call(
 		LINUX_SYSCALL_MMAP,
@@ -16,14 +17,16 @@ void* alloc_virtual_page(u64 size) {
 	return page;
 }
 
+static
 void free_virtual_page(void* page, u64 size) {
 	system_call(LINUX_SYSCALL_MUNMAP, (s64)page, size, 0, 0, 0, 0);
 }
 
 // ------------------------------------ //
 
-Stack stack;
+static Stack stack;
 
+static
 Stack make_stack(u64 size) {
 	size = round_to_nearest_mulpow2(size, 4086);
 	byte* p = alloc_virtual_page(size);
@@ -34,6 +37,7 @@ Stack make_stack(u64 size) {
 	};
 }
 
+static
 void* stack_alloc(u64 size) {
 	if (stack.head+size > stack.tail)
 		stack = make_stack(max_u64(size<<9, (stack.tail-stack.head)*2));
@@ -194,6 +198,7 @@ void init_global_allocator(void) {
 	zero(&global_allocator, sizeof(struct GlobalAllocator));
 }
 
+static
 void* alloc(u64 size) {
 	// print("alloc(% -> % -> 2^%)\n", arg_u64(size), arg_u64(ga_correct_size(size)), arg_u64(count_trailing_zeroes64(ga_correct_size(size))));
 
@@ -223,6 +228,7 @@ void* alloc(u64 size) {
 	return result;
 }
 
+static
 void free(void* p, u64 size) {
 	assert(p);
 	assert(size);
@@ -233,6 +239,7 @@ void free(void* p, u64 size) {
 	ga_mark_and_insert(pool_index, p);
 }
 
+static
 void* realloc(void* p, u64 oldsize, u64 newsize) {
 	u64 oldsize_corrected = ga_correct_size(oldsize);
 	u64 newsize_corrected = ga_correct_size(newsize);

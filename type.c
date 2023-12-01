@@ -1,31 +1,34 @@
 #include "type.h"
 
-Type* types;
-Type* types_end;
-u64 type_count;
+static Type* types;
+static Type* types_end;
+static u64 type_count;
 
-TypeKind get_type_kind(TypeID id)  { return id & 0xFllu; }
-u64      get_type_index(TypeID id) { return id >> 4llu;  }
+static TypeKind get_type_kind(TypeID id)  { return id & 0xFllu; }
+static u64      get_type_index(TypeID id) { return id >> 4llu;  }
 
 // @Warning: Pointer may be invalidated by new_type function. Use carefully!
-Type* get_type_ptr(TypeID id) { return types+get_type_index(id);  }
-Type  get_type(TypeID id)     { return types[get_type_index(id)]; }
+static Type* get_type_ptr(TypeID id) { return types+get_type_index(id);  }
+static Type  get_type(TypeID id)     { return types[get_type_index(id)]; }
 
-void update_type(TypeID id, Type type) { types[get_type_index(id)] = type; }
-u64  get_type_size(TypeID id) { return get_type(id).size; }
+static void update_type(TypeID id, Type type) { types[get_type_index(id)] = type; }
+static u64  get_type_size(TypeID id) { return get_type(id).size; }
 
+static
 u64 get_tuple_type_length(TypeID type) {
 	assert(type);
 	assert(get_type_kind(type) == TYPE_KIND_TUPLE);
 	return get_type(type).length;
 }
 
+static
 u64 get_fixed_type_length(TypeID type) {
 	assert(type);
 	assert(get_type_kind(type) == TYPE_KIND_FIXED);
 	return get_type(type).length;
 }
 
+static
 void init_type_system(void) {
 	types      = alloc(1<<24);
 	types_end  = (Type*)(((char*)types) + (1<<24));
@@ -48,6 +51,7 @@ void init_type_system(void) {
 	types[get_type_index(TYPE_EMPTY_TUPLE)] = (Type){ .size = 0, .length = 0 };
 }
 
+static
 TypeID new_type(TypeKind kind) {
 	u64 index = type_count;
 	TypeID id = MAKE_TYPEID(kind, index);
@@ -62,6 +66,7 @@ TypeID new_type(TypeKind kind) {
 	return id;
 }
 
+static
 void xtable_push(TypeID typeid, TypeExtent ext) {
 	XTable* table = &get_type_ptr(typeid)->xtable;
 	if (is_pow2(table->length+1)) {
@@ -76,6 +81,7 @@ void xtable_push(TypeID typeid, TypeExtent ext) {
 	table->length++;
 }
 
+static
 TypeID get_ref_type(TypeID subtype) {
 	assert(subtype);
 
@@ -94,6 +100,7 @@ TypeID get_ref_type(TypeID subtype) {
 	return ntid;
 }
 
+static
 TypeID get_pointer_type(TypeID subtype) {
 	assert(subtype);
 
@@ -112,6 +119,7 @@ TypeID get_pointer_type(TypeID subtype) {
 	return ntid;
 }
 
+static
 TypeID get_array_type(TypeID subtype) {
 	assert(subtype);
 
@@ -132,6 +140,7 @@ TypeID get_array_type(TypeID subtype) {
 
 // If get_function_type or get_tuple_type lookups are too slow we should start using binary search
 
+static
 TypeID get_function_type(TypeID input, TypeID output) {
 	assert(input);
 	assert(output);
@@ -164,6 +173,7 @@ TypeID get_function_type(TypeID input, TypeID output) {
 	return ntid;
 }
 
+static
 TypeID get_tuple_type(TypeID* types, u64 count) {
 	if (!count)
 		return TYPE_EMPTY_TUPLE;
@@ -214,6 +224,7 @@ TypeID get_tuple_type(TypeID* types, u64 count) {
 	return ntid;
 }
 
+static
 TypeID get_fixed_type(TypeID subtype, u64 length) {
 	assert(subtype);
 	assert(length);
@@ -249,6 +260,7 @@ TypeID get_fixed_type(TypeID subtype, u64 length) {
 	return ntid;
 }
 
+static
 bool is_int(TypeID type) {
 	switch (type) {
 		case TYPE_INT8:
@@ -265,6 +277,7 @@ bool is_int(TypeID type) {
 	}
 }
 
+static
 bool is_unsigned(TypeID type) {
 	switch (type) {
 		case TYPE_UINT8:
@@ -277,6 +290,7 @@ bool is_unsigned(TypeID type) {
 	}
 }
 
+static
 bool is_signed(TypeID type) {
 	switch (type) {
 		case TYPE_INT8:
@@ -289,6 +303,7 @@ bool is_signed(TypeID type) {
 	}
 }
 
+static
 bool is_float(TypeID type) {
 	switch (type) {
 		case TYPE_FLOAT32:
@@ -299,6 +314,7 @@ bool is_float(TypeID type) {
 	}
 }
 
+static
 bool is_ref(TypeID type) {
 	return get_type_kind(type) == TYPE_KIND_REF;
 }

@@ -3,8 +3,8 @@
 
 // ------------------------------------ //
 
-void* alloc_virtual_page(u64 size);
-void  free_virtual_page(void* page, u64 size);
+static void* alloc_virtual_page(u64 size);
+static void  free_virtual_page(void* page, u64 size);
 
 // ------------------------------------ //
 
@@ -13,17 +13,17 @@ typedef struct Stack {
 	byte* tail;
 } Stack;
 
-Stack make_stack(u64 size);
-void* stack_alloc(u64 size);
+static Stack make_stack(u64 size);
+static void* stack_alloc(u64 size);
 
 // ------------------------------------ //
 //
 // General purpose allocators usually used for arrays.
 // ... try to avoid these.
 
-void* alloc(u64 size);
-void  free(void* p, u64 size);
-void* realloc(void* p, u64 oldsize, u64 newsize);
+static void* alloc(u64 size);
+static void  free(void* p, u64 size);
+static void* realloc(void* p, u64 oldsize, u64 newsize);
 
 // ------------------------------------ //
 

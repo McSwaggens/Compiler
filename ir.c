@@ -1,10 +1,10 @@
 #include "ir.h"
 #include "ast.h"
 
-Procedure* initproc;
-Procedure** procedures;
-u32 procedure_count;
-u32 procedure_capacity;
+static Procedure* initproc;
+static Procedure** procedures;
+static u32 procedure_count;
+static u32 procedure_capacity;
 
 #define NONE ((Value){ .kind = VALUE_NONE })
 static Value vint(s64 i)              { return (Value){ .kind = VALUE_INT,         .i = i }; }
@@ -12,7 +12,8 @@ static Value vinst(Instruction* inst) { return (Value){ .kind = VALUE_INSTRUCTIO
 static Value vblock(Block* block)     { return (Value){ .kind = VALUE_BLOCK,       .block = block }; }
 static Value vproc(Procedure* proc)   { return (Value){ .kind = VALUE_PROCEDURE,   .procedure = proc }; }
 
-static char* instruction_kind_to_cstring(InstructionKind kind) {
+static
+char* instruction_kind_to_cstring(InstructionKind kind) {
 	switch (kind) {
 		case INSTRUCTION_NOOP:     return "noop";
 		case INSTRUCTION_STACK:    return "stack";
@@ -79,18 +80,7 @@ static char* instruction_kind_to_cstring(InstructionKind kind) {
 	}
 };
 
-void print_value(Value value) {
-	switch (value.kind) {
-		case VALUE_NONE:        print("VALUE_NONE"); return;
-		case VALUE_BLOCK:       print("block%", arg_u32(value.block->id)); return;
-		case VALUE_PROCEDURE:   print("proc_%", arg_string(value.procedure->name)); return;
-		case VALUE_INSTRUCTION: print("\\%%", arg_u32(value.instruction->id)); return;
-		case VALUE_INT: print("int %", arg_s64(value.i));   return;
-		case VALUE_F32: print("f32 %", arg_f32(value.f32)); return;
-		case VALUE_F64: print("f64 %", arg_f64(value.f64)); return;
-	}
-}
-
+static
 bool is_value_instruction(InstructionKind kind) {
 	switch (kind) {
 		case INSTRUCTION_BRANCH:
@@ -106,25 +96,14 @@ void print_instruction(Instruction* instruction) {
 	print("  ");
 
 	if (is_value_instruction(instruction->kind)) {
-		print_value(vinst(instruction));
-		print(" = ");
+		print("% = ", arg_value(vinst(instruction)));
 	}
 
 	print("% ", arg_cstring(instruction_kind_to_cstring(instruction->kind)));
 
-	if (instruction->a.kind) {
-		print_value(instruction->a);
-	}
-
-	if (instruction->b.kind) {
-		print(", ");
-		print_value(instruction->b);
-	}
-
-	if (instruction->c.kind) {
-		print(", ");
-		print_value(instruction->c);
-	}
+	if (instruction->a.kind) print("%",   arg_value(instruction->a));
+	if (instruction->b.kind) print(", %", arg_value(instruction->b));
+	if (instruction->c.kind) print(", %", arg_value(instruction->c));
 
 	print("\n");
 }
@@ -145,6 +124,7 @@ void print_procedure(Procedure* proc) {
 	}
 }
 
+static
 Procedure* make_procedure(String name) {
 	Procedure* proc = alloc(sizeof(Procedure));
 
@@ -162,6 +142,7 @@ Procedure* make_procedure(String name) {
 	return proc;
 }
 
+static
 Block* add_block(Procedure* proc) {
 	Block* block = alloc(sizeof(Block));
 	zero(block, sizeof(Block));
@@ -180,6 +161,7 @@ Block* add_block(Procedure* proc) {
 	return block;
 }
 
+static
 void reg_user(Value value, Instruction* user) {
 	UserStore* user_store = null;
 
@@ -203,6 +185,7 @@ void reg_user(Value value, Instruction* user) {
 	user_store->instructions[user_store->count++] = user;
 }
 
+static
 Instruction* add_instruction(Block* block, Instruction inst) {
 	Instruction* instruction = alloc(sizeof(Instruction));
 	*instruction = inst;
@@ -228,10 +211,12 @@ Instruction* add_instruction(Block* block, Instruction inst) {
 	return instruction;
 }
 
+static
 void set_init_function(Function* func) {
 	initproc = func->proc;
 }
 
+static
 Instruction* convert_param(Block* block, Variable* var, s64 n) {
 	Instruction* iparam = add_instruction(block, (Instruction){
 		.kind = INSTRUCTION_PARAM,
@@ -254,6 +239,7 @@ Instruction* convert_param(Block* block, Variable* var, s64 n) {
 	return istack;
 }
 
+static
 Value convert_expression(Expression* expr, Block* block) {
 	switch (expr->kind) {
 		case EXPR_NULL:  return vint(0);
@@ -273,6 +259,7 @@ Value convert_expression(Expression* expr, Block* block) {
 
 		case EXPR_ARRAY:
 		case EXPR_TUPLE: {
+			return vint(0);
 			assert(0);
 		} break;
 
@@ -291,6 +278,7 @@ Value convert_expression(Expression* expr, Block* block) {
 		case EXPR_UNARY_BIT_NOT:
 		case EXPR_UNARY_PTR:
 		case EXPR_UNARY_REF: {
+			return vint(0);
 			assert(0);
 		} break;
 
@@ -298,6 +286,7 @@ Value convert_expression(Expression* expr, Block* block) {
 		case EXPR_SPEC_ARRAY:
 		case EXPR_SPEC_FIXED: {
 			// Interpreter?
+			assert(0);
 		} break;
 
 		case EXPR_BINARY_ADD:
@@ -356,10 +345,12 @@ Value convert_expression(Expression* expr, Block* block) {
 
 		case EXPR_BINARY_DOT: {
 			// @Todo
+			assert(0);	
 		} break;
 
 		case EXPR_BINARY_DOT_DOT:
 		case EXPR_BINARY_SPAN: {
+			assert(0);	
 		} break;
 
 		case EXPR_CALL: {
@@ -381,9 +372,11 @@ Value convert_expression(Expression* expr, Block* block) {
 		case EXPR_INDEX: {
 			Value varray = convert_expression(expr->subscript.base, block);
 			Value vindex = convert_expression(expr->subscript.index, block);
+			return varray;
 		} break;
 
 		case EXPR_TERNARY_IF_ELSE: {
+			return vint(0);
 			assert(0);	
 		} break;
 	}
@@ -392,6 +385,7 @@ Value convert_expression(Expression* expr, Block* block) {
 	return NONE;
 }
 
+static
 Value load(Block* block, Value v) {
 	return vinst(
 		add_instruction(block,
@@ -403,6 +397,7 @@ Value load(Block* block, Value v) {
 	);
 }
 
+static
 void store(Block* block, Value dest, Value v) {
 	add_instruction(block,
 		(Instruction){
@@ -413,6 +408,7 @@ void store(Block* block, Value dest, Value v) {
 	);
 }
 
+static
 Value convert_expression_deref(Expression* expr, Block* block) {
 	Value v = convert_expression(expr, block);
 
@@ -423,6 +419,7 @@ Value convert_expression_deref(Expression* expr, Block* block) {
 	return v;
 }
 
+static
 void convert_statement(Statement* statement, Block* block) {
 	switch (statement->kind) {
 		case STATEMENT_ASSIGNMENT: {
@@ -484,9 +481,10 @@ void convert_statement(Statement* statement, Block* block) {
 				.a = get_type_size(var->type),
 			});
 
-			Value vinit = convert_expression_deref(statement->var->init_expr, block);
-
-			store(block, vinst(var->stack), vinit);
+			if (var->init_expr) {
+				Value vinit = convert_expression_deref(var->init_expr, block);
+				store(block, vinst(var->stack), vinit);
+			}
 		} break;
 
 		case STATEMENT_RETURN: {
@@ -535,6 +533,7 @@ void convert_statement(Statement* statement, Block* block) {
 	}
 }
 
+static
 void convert_code(Code* code, Block* block) {
 	for (u32 i = 0; i < code->statement_count; i++) {
 		Statement* statement = &code->statements[i];
@@ -543,6 +542,7 @@ void convert_code(Code* code, Block* block) {
 }
 
 // Probs need some params here to indicate the instance of the function? (Constant arguments)
+static
 void convert_function(Function* func) {
 	Procedure* proc = func->proc;
 	proc->entry = add_block(proc);
@@ -555,6 +555,7 @@ void convert_function(Function* func) {
 	convert_code(&func->code, proc->entry);
 }
 
+static
 void preconvert_module(Module* module) {
 	for (u32 i = 0; i < module->function_count; i++) {
 		Function* func = &module->functions[i];
@@ -562,6 +563,7 @@ void preconvert_module(Module* module) {
 	}
 }
 
+static
 void convert_module(Module* module) {
 	for (u32 i = 0; i < module->function_count; i++) {
 		Function* func = &module->functions[i];
@@ -576,6 +578,7 @@ void convert_module(Module* module) {
 	}
 }
 
+static
 void init_ir(void) {
 	initproc = null;
 	procedure_count = 0;
