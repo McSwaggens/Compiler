@@ -350,6 +350,7 @@ Value convert_expression(Expression* expr, Block* block) {
 
 		case EXPR_BINARY_DOT_DOT:
 		case EXPR_BINARY_SPAN: {
+			return vint(0);
 			assert(0);	
 		} break;
 

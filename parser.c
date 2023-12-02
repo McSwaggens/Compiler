@@ -484,7 +484,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 				.kind = EXPR_ARRAY,
 			};
 
-			ih_test(token, helper, 0);
+			// ih_test(token, helper, 0);
 			ih_enter(helper);
 			token++;
 
@@ -521,8 +521,8 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 				token++;
 			}
 
-			ih_test(token, helper, 0);
 			ih_leave(helper);
+			ih_test(token, helper, 0);
 			token++;
 
 			left->array.elems = elems;
@@ -538,8 +538,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 
 			// ih_test(token, helper, 0);
 			ih_enter(helper);
-
-			token++;
+			token++; // {
 
 			// print("Starting tuple parse...\n");
 
@@ -592,13 +591,14 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 			left = alloc_expression();
 
 			ih_enter(helper);
+			token++; // [
 
-			if (token[1].kind == TOKEN_CLOSE_BRACKET) {
+			if (token->kind == TOKEN_CLOSE_BRACKET) {
 				left->kind = EXPR_SPEC_ARRAY; // []e
 
 				// Take subexpression
-				ih_test(token+2, helper, 0); // e
-				token = internal_parse_expression(module, token+2, allow_equals, unaryprec, helper, &left->specifier.sub);
+				ih_test(token+1, helper, 0); // e
+				token = internal_parse_expression(module, token+1, allow_equals, unaryprec, helper, &left->specifier.sub);
 
 				if (!left->specifier.sub) {
 					errort(token, "Fixed array specifier missing specifier\n");
@@ -610,8 +610,8 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 			Expression* lexpr = null;
 
 			left->kind = EXPR_SPEC_FIXED; // [n]e
-			ih_test(token+1, helper, 0); // n
-			token = internal_parse_expression(module, token+1, allow_equals, 0, helper, &lexpr);
+			ih_test(token, helper, 0); // n
+			token = internal_parse_expression(module, token, allow_equals, 0, helper, &lexpr);
 
 			if (!lexpr)
 				errort(token, "Expected expression after brackets\n");
@@ -632,8 +632,8 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 				errort(token, "Expected ']', not: %\n", arg_token(token));
 
 			ih_leave(helper);
-			ih_test(token, helper, 0); // ]
-			token++;
+			ih_test(token, helper, 0);
+			token++; // ]
 
 			if (left->kind == EXPR_SPEC_FIXED) {
 				// [N]e
