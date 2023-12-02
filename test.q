@@ -1,6 +1,6 @@
 Bar():
 
-Foo():
+Foo(a: int, b: int, c: int, d: int):
 	foo : int = 0
 	bar : int = 1
 

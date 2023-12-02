@@ -1230,32 +1230,39 @@ Token* parse_code(Module* module, Token* token, Indent16 indent, Code* code) {
 
 static
 Token* parse_params(Module* module, Function* func, Token* token, Indent16 indent) {
+	Token* open = token;
+
+	if (!open->closure)
+		errort(open, "Function parameters missing closing ')'");
+
 	check_indent(token, indent);
-	token++;
+	token++; // (
 
-	if (token->kind != TOKEN_CLOSE_PAREN)
-	while (true) {
-		Variable var = { 0 };
+	if (token->kind != TOKEN_CLOSE_PAREN) {
+		func->param_count = open->comma_count+1;
+		func->params = alloc(sizeof(Variable)*func->param_count);
+		Variable* param = func->params;
 
-		if (token->kind == TOKEN_EOF)
-			errort(token, "Missing ')'\n");
+		while (true) {
+			if (token->kind == TOKEN_EOF)
+				errort(token, "Missing ')'\n");
 
-		token = parse_variable_declaration(module, token, indent+1, &var);
-		func->params = realloc(func->params, func->param_count*sizeof(Variable), (func->param_count+1)*sizeof(Variable));
-		func->params[func->param_count++] = var;
+			token = parse_variable_declaration(module, token, indent+1, param);
+			param++;
 
-		if (token->kind == TOKEN_CLOSE_PAREN)
-			break;
+			if (token->kind == TOKEN_CLOSE_PAREN)
+				break;
 
-		if (token->kind != TOKEN_COMMA)
-			errort(token, "Expected ')' or ',', not: %\n", arg_token(token));
+			if (token->kind != TOKEN_COMMA)
+				errort(token, "Expected ')' or ',', not: %\n", arg_token(token));
 
-		check_indent(token, indent);
-		token++;
+			check_indent(token, indent);
+			token++;
+		}
 	}
 
 	check_indent(token, indent);
-	token++;
+	token++; // )
 
 	return token;
 }
