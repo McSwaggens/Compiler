@@ -1069,6 +1069,7 @@ void lex(Module* module) {
 					);
 				}
 
+				open_token->closure = lexer.head;
 				open_token = open_token->closure;
 			} break;
 
