@@ -2,8 +2,7 @@
 
 // ------------------------------------ //
 
-static
-void* alloc_virtual_page(u64 size) {
+static void* alloc_virtual_page(u64 size) {
 	void* page = (void*)system_call(
 		LINUX_SYSCALL_MMAP,
 		0,
@@ -17,8 +16,7 @@ void* alloc_virtual_page(u64 size) {
 	return page;
 }
 
-static
-void free_virtual_page(void* page, u64 size) {
+static void free_virtual_page(void* page, u64 size) {
 	system_call(LINUX_SYSCALL_MUNMAP, (s64)page, size, 0, 0, 0, 0);
 }
 
@@ -26,8 +24,7 @@ void free_virtual_page(void* page, u64 size) {
 
 static Stack stack;
 
-static
-Stack make_stack(u64 size) {
+static Stack make_stack(u64 size) {
 	size = round_to_nearest_mulpow2(size, 4086);
 	byte* p = alloc_virtual_page(size);
 
@@ -37,8 +34,7 @@ Stack make_stack(u64 size) {
 	};
 }
 
-static
-void* stack_alloc(u64 size) {
+static void* stack_alloc(u64 size) {
 	if (stack.head+size > stack.tail)
 		stack = make_stack(max_u64(size<<9, (stack.tail-stack.head)*2));
 
@@ -64,69 +60,58 @@ struct GlobalAllocator {
 	GlobalAllocator_Pool pools[64];
 } static global_allocator;
 
-static
-GlobalAllocator_Pool* ga_get_pool(u64 pool_index) {
+static GlobalAllocator_Pool* ga_get_pool(u64 pool_index) {
 	return &global_allocator.pools[pool_index];
 }
 
-static
-bool ga_is_populated(u64 pool_index) {
+static bool ga_is_populated(u64 pool_index) {
 	return (global_allocator.plot >> pool_index) & 1;
 }
 
-static
-void ga_mark_empty(u64 pool_index) {
+static void ga_mark_empty(u64 pool_index) {
 	global_allocator.plot &= ~(1llu << pool_index);
 	// print("  % marked empty\n", arg_u64(pool_index));
 }
 
-static
-void ga_mark_populated(u64 pool_index) {
+static void ga_mark_populated(u64 pool_index) {
 	global_allocator.plot |= (1llu << pool_index);
 }
 
-static
-void ga_do_empty_check(u64 pool_index) {
+static void ga_do_empty_check(u64 pool_index) {
 	GlobalAllocator_Pool* pool = ga_get_pool(pool_index);
 
 	if (!pool->ll_head && pool->shead == pool->stail)
 		ga_mark_empty(pool_index);
 }
 
-static
-void ga_set_stack(u64 pool_index, void* p, u64 size) {
+static void ga_set_stack(u64 pool_index, void* p, u64 size) {
 	GlobalAllocator_Pool* pool = ga_get_pool(pool_index);
 	pool->shead = p;
 	pool->stail = p + size;
 }
 
-static
-void ga_set_stack_and_mark(u64 pool_index, void* p, u64 size) {
+static void ga_set_stack_and_mark(u64 pool_index, void* p, u64 size) {
 	ga_set_stack(pool_index, p, size);
 	ga_mark_populated(pool_index);
 }
 
-static
-void ga_insert(u64 pool_index, void* p) {
+static void ga_insert(u64 pool_index, void* p) {
 	GlobalAllocator_Pool* pool = ga_get_pool(pool_index);
 	*(void**)p = pool->ll_head;
 	pool->ll_head = p;
 }
 
-static
-void ga_mark_and_insert(u64 pool_index, void* p) {
+static void ga_mark_and_insert(u64 pool_index, void* p) {
 	ga_insert(pool_index, p);
 	ga_mark_populated(pool_index);
 }
 
-static
-u64 ga_get_next_best_pool(u64 pool_index) {
+static u64 ga_get_next_best_pool(u64 pool_index) {
 	// &63 is to crash 64 to 0
 	return count_trailing_zeroes64(global_allocator.plot & (-2llu<<pool_index)) & 63;
 }
 
-static
-void* ga_take(u64 pool_index) {
+static void* ga_take(u64 pool_index) {
 	// print("ga_take(%)\n", arg_u64(pool_index));
 
 	GlobalAllocator_Pool* pool = ga_get_pool(pool_index);
@@ -151,8 +136,7 @@ void* ga_take(u64 pool_index) {
 	return result;
 }
 
-static
-void ga_splat(u64 top_index, u64 bottom_index) {
+static void ga_splat(u64 top_index, u64 bottom_index) {
 	assert(top_index != bottom_index);
 	assert(top_index > bottom_index);
 	assert(ga_is_populated(top_index));
@@ -182,24 +166,20 @@ void ga_splat(u64 top_index, u64 bottom_index) {
 	ga_set_stack_and_mark(original_bottom_index, p, size);
 }
 
-static
-u64 ga_correct_size(u64 size) {
+static u64 ga_correct_size(u64 size) {
 	return size ? round_pow2((size+7)&-8) : 0;
 }
 
-static
-u64 ga_size_to_index(u64 size) {
+static u64 ga_size_to_index(u64 size) {
 	assert(is_pow2(size));
 	return count_trailing_zeroes64(size);
 }
 
-static
-void init_global_allocator(void) {
+static void init_global_allocator(void) {
 	zero(&global_allocator, sizeof(struct GlobalAllocator));
 }
 
-static
-void* alloc(u64 size) {
+static void* alloc(u64 size) {
 	// print("alloc(% -> % -> 2^%)\n", arg_u64(size), arg_u64(ga_correct_size(size)), arg_u64(count_trailing_zeroes64(ga_correct_size(size))));
 
 	if (!size)
@@ -228,8 +208,7 @@ void* alloc(u64 size) {
 	return result;
 }
 
-static
-void free(void* p, u64 size) {
+static void free(void* p, u64 size) {
 	assert(p);
 	assert(size);
 
@@ -239,8 +218,7 @@ void free(void* p, u64 size) {
 	ga_mark_and_insert(pool_index, p);
 }
 
-static
-void* realloc(void* p, u64 oldsize, u64 newsize) {
+static void* realloc(void* p, u64 oldsize, u64 newsize) {
 	u64 oldsize_corrected = ga_correct_size(oldsize);
 	u64 newsize_corrected = ga_correct_size(newsize);
 

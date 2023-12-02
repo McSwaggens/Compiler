@@ -882,68 +882,6 @@ Token* parse_variable_declaration(Module* module, Token* token, Indent16 indent,
 }
 
 static
-Token* parse_match(Module* module, Token* token, Indent16 indent, Match* out) {
-	while (is_correct_indent(token, indent)) {
-		MatchGroup group = { 0 };
-
-		if (token->kind == TOKEN_THEN) {
-			if (token[1].kind != TOKEN_COLON)
-				errort(token, "Expected ':' after 'then', not: %\n", arg_token(token+1));
-
-			check_indent(token,   indent);
-			check_indent(token+1, indent);
-
-			if (!is_correct_indent(token, indent))
-				errort(token, "Code missing for 'then' clause in match statement\n");
-		}
-		else {
-			if (token->kind == TOKEN_ELSE)
-				errort(token, "'else' clause not allowed in match statement\n");
-
-			while (true) {
-				if (!is_expression_starter(token->kind))
-					errort(token, "Expected expression, not: %\n", arg_token(token));
-
-				Expression* expr = null;
-				token = parse_expression(module, token, indent+1, true, &expr);
-
-				group.exprs = realloc(group.exprs, sizeof(Expression*) * (group.expr_count), sizeof(Expression*) * (group.expr_count+1));
-				group.exprs[group.expr_count++] = expr;
-
-				if (token->kind != TOKEN_COMMA)
-					break;
-
-				check_indent(token, indent);
-				token++;
-			}
-
-			if (token->kind != TOKEN_COLON)
-				errort(token, "Expected ':', not: %\n", arg_token(token));
-
-			check_indent(token, indent);
-
-			token = parse_code(module, token+1, indent+1, &group.code);
-
-			realloc(out->groups, (out->group_count)+sizeof(MatchGroup), (out->group_count+4)*sizeof(MatchGroup));
-			out->groups[out->group_count++] = group;
-		}
-	}
-
-	MatchGroup* then = null;
-
-	for (u64 i = 0; i < out->group_count; i++) {
-		MatchGroup* g = out->groups+i;
-
-		g->clause_then = then;
-
-		if (g->kind == CLAUSE_THEN)
-			then = g;
-	}
-
-	return token;
-}
-
-static
 Token* parse_if(Module* module, Token* token, Indent16 indent, Branch* branch) {
 	branch->kind = BRANCH_IF;
 	token++;
@@ -958,8 +896,9 @@ Token* parse_if(Module* module, Token* token, Indent16 indent, Branch* branch) {
 	if (token->kind != TOKEN_COLON)
 		errort(token, "Expected ':', not: %\n", arg_token(token));
 	check_indent(token, indent+1);
+	token++; // :
 
-	token = parse_code(module, token+1, indent+1, &branch->code);
+	token = parse_code(module, token, indent+1, &branch->code);
 
 	return token;
 }
@@ -979,8 +918,9 @@ Token* parse_while(Module* module, Token* token, Indent16 indent, Branch* branch
 	if (token->kind != TOKEN_COLON)
 		errort(token, "Expected ':', not: '%'\n", arg_token(token));
 	check_indent(token, indent+1);
+	token++; // :
 
-	token = parse_code(module, token+1, indent+1, &branch->code);
+	token = parse_code(module, token, indent+1, &branch->code);
 
 	return token;
 }
@@ -1022,45 +962,104 @@ Token* parse_for(Module* module, Token* token, Indent16 indent, Branch* branch) 
 	if (token->kind != TOKEN_COLON)
 		errort(token, "Expected ':', not: '%'\n", arg_token(token));
 	check_indent(token, indent+1);
+	token++; // :
 
-	token = parse_code(module, token+1, indent+1, &branch->code);
+	token = parse_code(module, token, indent+1, &branch->code);
+
+	return token;
+}
+
+static
+Token* parse_match(Module* module, Token* token, Indent16 indent, Branch* branch) {
+	branch->kind = BRANCH_MATCH;
+	token++; // match
+
+	if (!is_expression_starter(token->kind))
+		errort(token, "Expected expression not: '%'\n", arg_token(token+1));
+
+	token = parse_expression(module, token, indent+1, true, &branch->cond);
+
+	if (token->kind != TOKEN_COLON)
+		errort(token, "Expected ':', not: '%'\n", arg_token(token));
+	check_indent(token, indent+1);
+	token++; // :
+
+	while (is_correct_indent(token, indent+1)) {
+		MatchGroup group = { 0 };
+
+		if (token->kind == TOKEN_THEN) {
+			check_indent(token,   indent+1); // then
+			token++;
+
+			if (token->kind != TOKEN_COLON)
+				errort(token, "Expected ':' after 'then', not: %\n", arg_token(token));
+			check_indent(token, indent+1);
+			token++; // :
+
+			if (!is_correct_indent(token, indent+2))
+				errort(token, "Code missing for 'then' clause in match statement\n");
+
+			token = parse_code(module, token, indent+2, &branch->code);
+		}
+		else {
+			if (token->kind == TOKEN_ELSE)
+				errort(token, "'else' clause not allowed in match statement\n");
+
+			while (true) {
+				if (!is_expression_starter(token->kind))
+					errort(token, "Expected match expression, not: %\n", arg_token(token));
+
+				Expression* expr = null;
+				token = parse_expression(module, token, indent+2, true, &expr);
+
+				group.exprs = realloc(group.exprs, sizeof(Expression*) * (group.expr_count), sizeof(Expression*) * (group.expr_count+1));
+				group.exprs[group.expr_count++] = expr;
+
+				if (token->kind != TOKEN_COMMA)
+					break;
+
+				check_indent(token, indent+1); // ,
+				token++;
+			}
+
+			if (token->kind != TOKEN_COLON)
+				errort(token, "Expected ':', not: %\n", arg_token(token));
+
+			token = parse_code(module, token+1, indent+2, &group.code);
+
+			realloc(branch->match.groups, branch->match.group_count+sizeof(MatchGroup), (branch->match.group_count+4)*sizeof(MatchGroup));
+			branch->match.groups[branch->match.group_count++] = group;
+		}
+	}
+
+	MatchGroup* then = null;
+
+   	for (u64 i = 0; i < branch->match.group_count; i++) {
+		MatchGroup* g = &branch->match.groups[i];
+
+		g->clause_then = then;
+
+		if (g->kind == CLAUSE_THEN)
+			then = g;
+	}
 
 	return token;
 }
 
 static
 Token* parse_branch(Module* module, Token* token, Indent16 indent, Branch* branch) {
-	// print("Parsing new branch... token = %\n", arg_token(token));
-
 	*branch = (Branch){ 0 };
 
 	switch (token->kind) {
 		case TOKEN_COLON: {
 			branch->kind = BRANCH_NAKED;
-			check_indent(token, indent+1);
 			token = parse_code(module, token+1, indent+1, &branch->code);
 		} break;
 
 		case TOKEN_IF:    token = parse_if(module, token, indent, branch); break;
 		case TOKEN_WHILE: token = parse_while(module, token, indent, branch); break;
 		case TOKEN_FOR:   token = parse_for(module, token, indent, branch); break;
-
-		case TOKEN_MATCH: {
-			branch->kind = BRANCH_MATCH;
-			token++; // match
-
-			if (!is_expression_starter(token->kind))
-				errort(token, "Expected expression not: '%'\n", arg_token(token+1));
-
-			token = parse_expression(module, token, indent+1, true, &branch->cond);
-
-			if (token->kind != TOKEN_COLON)
-				errort(token, "Expected ':', not: '%'\n", arg_token(token));
-			check_indent(token, indent+1);
-			token++; // :
-
-			token = parse_match(module, token, indent+1, &branch->match);
-		} break;
+		case TOKEN_MATCH: token = parse_match(module, token, indent, branch); break;
 
 		default: {
 		} break;
@@ -1091,7 +1090,7 @@ Token* parse_controlflow(Module* module, Token* token, Indent16 indent, ControlF
 		if (token->kind == TOKEN_THEN)
 			clause = CLAUSE_THEN;
 
-		token++;
+		token++; // else | then
 	}
 
 	Branch* belse = null;
@@ -1216,6 +1215,9 @@ Token* parse_statement(Module* module, Token* token, Indent16 indent, Code* code
 
 static
 Token* parse_code(Module* module, Token* token, Indent16 indent, Code* code) {
+	if (token->indent > indent)
+		errort(token, "Invalid indent for statement");
+
 	while (is_correct_indent(token, indent)) {
 		token = parse_statement(module, token, indent, code);
 
@@ -1269,14 +1271,17 @@ Token* parse_function(Module* module, Token* token, Indent16 indent) {
 
 	if (token->kind == TOKEN_ARROW) {
 		check_indent(token, indent);
-		token = parse_expression(module, token+1, indent+1, true, &func.return_type_expr);
+		token++; // ->
+
+		token = parse_expression(module, token, indent+1, true, &func.return_type_expr);
 	}
 
 	if (token->kind != TOKEN_COLON)
 		errort(token, "Function declaration expected ':', not: %\n", arg_token(token));
 	check_indent(token, indent);
+	token++; // :
 
-	token = parse_code(module, token+1, indent+1, &func.code);
+	token = parse_code(module, token, indent+1, &func.code);
 
 	// print("Parsed function: %\n", arg_token(func->name));
 	module->functions[module->function_count++] = func;

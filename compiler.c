@@ -19,13 +19,11 @@ struct ModuleStore {
 	ModuleIndex16 capacity;
 } static module_store;
 
-static
-Module* get_module(ModuleIndex16 module_index) {
+static Module* get_module(ModuleIndex16 module_index) {
 	return module_store.modules[module_index];
 }
 
-static
-Module* make_module(String file) {
+static Module* make_module(String file) {
 	if (module_store.count == module_store.capacity) {
 		module_store.capacity <<= 2;
 		module_store.modules = realloc(
@@ -47,8 +45,7 @@ Module* make_module(String file) {
 
 // @WARNING: VERY SLOW FUNCTION.
 // @WARNING: ONLY USE IN COLD PATH (Error)
-static
-Module* find_module(Token* token) {
+static Module* find_module(Token* token) {
 	for (u32 i = 0; i < module_store.count; i++) {
 		Module* module = module_store.modules[i];
 		if (token >= module->tokens && token < module->tokens_end)
@@ -59,19 +56,16 @@ Module* find_module(Token* token) {
 	return null;
 }
 
-static
-TokenAux* get_aux(Module* module, Token* token) {
+static TokenAux* get_aux(Module* module, Token* token) {
 	u32 index = token - module->tokens;
 	return &module->auxs[index];
 }
 
-static
-Position get_pos(Module* module, Token* token) {
+static Position get_pos(Module* module, Token* token) {
 	return get_aux(module, token)->pos;
 }
 
-static
-void init_module_store(void) {
+static void init_module_store(void) {
 	module_store.capacity = 64;
 	module_store.count    = 0;
 	module_store.modules  = alloc(sizeof(Module*)*module_store.capacity);
