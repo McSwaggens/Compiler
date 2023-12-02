@@ -401,7 +401,7 @@ void ih_test(Token* token, IndentHelper* helper, s32 adjustment) {
 		return;
 	}
 
-	errort(token, "Invalid indent");
+	errort(token, "Invalid indent\n");
 }
 
 static
@@ -475,7 +475,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 			token = internal_parse_expression(module, token, allow_equals, unaryprec, helper, &left->unary.sub);
 
 			if (!left->unary.sub)
-				errort(token, "Expected expression after unary '%' operator", arg_token(begin));
+				errort(token, "Expected expression after unary '%' operator\n", arg_token(begin));
 		} break;
 
 		case TOKEN_OPEN_BRACE: {
@@ -503,7 +503,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 				token = internal_parse_expression(module, token, true, 0, helper, &elem);
 
 				if (!elem)
-					errort(token, "Expected expression in array literal, not: '%'", arg_token(token));
+					errort(token, "Expected expression in array literal, not: '%'\n", arg_token(token));
 
 				elems = realloc(elems, sizeof(Expression*) * count, sizeof(Expression*) * (count+1));
 				elems[count++] = elem;
@@ -557,7 +557,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 				token = internal_parse_expression(module, token, true, 0, helper, &elem);
 
 				if (!elem)
-					errort(token, "Expected expression in tuple, not: '%'", arg_token(token));
+					errort(token, "Expected expression in tuple, not: '%'\n", arg_token(token));
 
 				elems = realloc(elems, sizeof(Expression*) * (count), sizeof(Expression*) * (count+1));
 				// print("elems = %\n", arg_u64((u64)elems));
@@ -601,7 +601,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 				token = internal_parse_expression(module, token+2, allow_equals, unaryprec, helper, &left->specifier.sub);
 
 				if (!left->specifier.sub) {
-					errort(token, "Fixed array specifier missing specifier");
+					errort(token, "Fixed array specifier missing specifier\n");
 				}
 
 				break;
@@ -614,7 +614,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 			token = internal_parse_expression(module, token+1, allow_equals, 0, helper, &lexpr);
 
 			if (!lexpr)
-				errort(token, "Expected expression after brackets");
+				errort(token, "Expected expression after brackets\n");
 
 
 			if (token->kind == TOKEN_DOT_DOT) {
@@ -625,7 +625,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 				token = internal_parse_expression(module, token+1, allow_equals, 0, helper, &left->span.right);
 
 				if (!left->span.right)
-					errort(token, "Span extent expression missing");
+					errort(token, "Span extent expression missing\n");
 			}
 
 			if (token->kind != TOKEN_CLOSE_BRACKET)
@@ -642,7 +642,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 				token = internal_parse_expression(module, token, allow_equals, unaryprec, helper, &left->specifier.sub);
 
 				if (!left->specifier.sub)
-					errort(token, "Invalid bracketed expression, valid syntaxes: e[e], [e]e");
+					errort(token, "Invalid bracketed expression, valid syntaxes: e[e], [e]e\n");
 			}
 
 		} break;
@@ -714,7 +714,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 				token = internal_parse_expression(module, token, allow_equals, precedence, helper, &expr->binary.right);
 
 				if (!expr->binary.right) {
-					errort(token, "Expected expression after binary '%' operator", arg_token(expr->binary.optoken));
+					errort(token, "Expected expression after binary '%' operator\n", arg_token(expr->binary.optoken));
 				}
 			} break;
 
@@ -729,7 +729,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 				token = internal_parse_expression(module, token, allow_equals, 0, helper, &expr->subscript.index);
 
 				if (!expr->subscript.index) {
-					errort(token, "Expression missing in subscript");
+					errort(token, "Expression missing in subscript\n");
 				}
 
 				if (token->kind != TOKEN_CLOSE_BRACKET) {
@@ -763,7 +763,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 					expr->call.args[expr->call.arg_count] = arg;
 
 					if (!arg)
-						errort(token, "Invalid function argument, expected expression, not: '%'", arg_token(token));
+						errort(token, "Invalid function argument, expected expression, not: '%'\n", arg_token(token));
 
 					expr->call.arg_count++;
 
@@ -795,7 +795,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 				token = internal_parse_expression(module, token+1, true, precedence, helper, &expr->ternary.middle);
 
 				if (!expr->ternary.middle)
-					errort(token, "Condition expression missing from 'if else' operator, unexpected: '%'", arg_token(token));
+					errort(token, "Condition expression missing from 'if else' operator, unexpected: '%'\n", arg_token(token));
 
 				if (token->kind != TOKEN_ELSE)
 					errort(token, "Expected 'else' not: %\n", arg_token(token));
@@ -804,7 +804,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 				token = internal_parse_expression(module, token+1, allow_equals, precedence, helper, &expr->ternary.right);
 
 				if (!expr->ternary.right)
-					errort(token, "Expected expression after 'else', not: '%'", arg_token(token));
+					errort(token, "Expected expression after 'else', not: '%'\n", arg_token(token));
 			} break;
 		}
 
@@ -887,7 +887,7 @@ Token* parse_if(Module* module, Token* token, Indent16 indent, Branch* branch) {
 	token++;
 
 	if (!is_expression_starter(token->kind)) {
-		errort(token, "Missing condition expression in 'if' branch");
+		errort(token, "Missing condition expression in 'if' branch\n");
 	}
 
 	check_indent(token, indent+1);
@@ -909,7 +909,7 @@ Token* parse_while(Module* module, Token* token, Indent16 indent, Branch* branch
 	token++;
 
 	if (!is_expression_starter(token->kind)) {
-		errort(token, "Missing condition expression in 'while' branch");
+		errort(token, "Missing condition expression in 'while' branch\n");
 	}
 
 	check_indent(token, indent+1);
@@ -931,7 +931,7 @@ Token* parse_for(Module* module, Token* token, Indent16 indent, Branch* branch) 
 	token++;
 
 	if (token->kind != TOKEN_IDENTIFIER_VARIABLE) {
-		errort(token, "Expected variable declaration after 'for', not: '%'", arg_token(token));
+		errort(token, "Expected variable declaration after 'for', not: '%'\n", arg_token(token));
 	}
 	check_indent(token, indent+1);
 
@@ -953,7 +953,7 @@ Token* parse_for(Module* module, Token* token, Indent16 indent, Branch* branch) 
 		token++;
 
 		if (!is_expression_starter(token->kind))
-			errort(token, "Expected expression after ','");
+			errort(token, "Expected expression after ','\n");
 
 		check_indent(token, indent+1);
 		token = parse_expression(module, token, indent+1, true, &branch->new);
@@ -1216,7 +1216,7 @@ Token* parse_statement(Module* module, Token* token, Indent16 indent, Code* code
 static
 Token* parse_code(Module* module, Token* token, Indent16 indent, Code* code) {
 	if (token->indent > indent)
-		errort(token, "Invalid indent for statement");
+		errort(token, "Invalid indent for statement\n");
 
 	while (is_correct_indent(token, indent)) {
 		token = parse_statement(module, token, indent, code);
@@ -1233,7 +1233,7 @@ Token* parse_params(Module* module, Function* func, Token* token, Indent16 inden
 	Token* open = token;
 
 	if (!open->closure)
-		errort(open, "Function parameters missing closing ')'");
+		errort(open, "Function parameters missing closing ')'\n");
 
 	check_indent(token, indent);
 	token++; // (
