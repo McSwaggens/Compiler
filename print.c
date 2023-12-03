@@ -354,18 +354,20 @@ void write_expression(OutputBuffer* buffer, Expression* expr) {
 		} break;
 
 		case EXPR_SPEC_FIXED: {
-			write_expression(buffer, expr->specifier.sub);
 			write_char(buffer, '[');
 			write_expression(buffer, expr->specifier.length);
 			write_char(buffer, ']');
+			write_expression(buffer, expr->specifier.sub);
 		} break;
 
-		case EXPR_SPEC_PTR:
-		case EXPR_SPEC_ARRAY: {
-			write_char(buffer, '(');
-			write_token(buffer, expr->specifier.sepcifier_token);
+		case EXPR_SPEC_PTR: {
+			write_char(buffer, '*');
 			write_expression(buffer, expr->specifier.sub);
-			write_char(buffer, ')');
+		} break;
+
+		case EXPR_SPEC_ARRAY: {
+			write_cstring(buffer, "[]");
+			write_expression(buffer, expr->specifier.sub);
 		} break;
 
 		case EXPR_UNARY_PTR:

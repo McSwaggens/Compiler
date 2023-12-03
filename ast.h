@@ -179,7 +179,6 @@ struct Expression {
 		} tuple, fixed, array;
 
 		struct {
-			Token* sepcifier_token;
 			Expression* sub;
 			Expression* length;
 		} specifier;
