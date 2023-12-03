@@ -381,7 +381,7 @@ void ih_leave(IndentHelper* helper) {
 }
 
 static
-void ih_test(Token* token, IndentHelper* helper, s32 adjustment) {
+void ih_check(Token* token, IndentHelper* helper, s32 adjustment) {
 	if (token->kind == TOKEN_EOF)
 		return;
 
@@ -405,8 +405,21 @@ void ih_test(Token* token, IndentHelper* helper, s32 adjustment) {
 }
 
 static
+bool ih_test(Token* token, IndentHelper* helper, s32 adjustment) {
+	if (token->kind == TOKEN_EOF)
+		return false;
+
+	if (!is_newline(token))
+		return true;
+
+	Indent16 expected_indent = helper->indent + helper->bracket_level + helper->adjustment + adjustment;
+
+	return token->indent == expected_indent || token->indent == expected_indent-1;
+}
+
+static
 Token* internal_parse_expression(Module* module, Token* token, bool allow_equals, u8 parent_precedence, IndentHelper* helper, Expression** out) {
-	// Make sure to call ih_test before internal_parse_expression
+	// Make sure to call ih_check before internal_parse_expression
 	Expression* left = null;
 	Token* begin = token;
 
@@ -471,7 +484,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 
 			token++;
 
-			ih_test(token, helper, 0);
+			ih_check(token, helper, 0);
 			token = internal_parse_expression(module, token, allow_equals, unaryprec, helper, &left->unary.sub);
 
 			if (!left->unary.sub)
@@ -484,46 +497,54 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 				.kind = EXPR_ARRAY,
 			};
 
-			// ih_test(token, helper, 0);
-			ih_enter(helper);
-			token++;
+			Token* open = token;
 
+			if (!open->closure)
+				errort(open, "Fixed array literal missing closing '}'\n");
+
+			// ih_check(token, helper, 0);
+			ih_enter(helper);
+			token++; // {
 
 			Expression** elems = null;
 			u64 count = 0;
 
+			if (token->kind != TOKEN_CLOSE_BRACE) {
+				count = open->comma_count+1;
+				elems = alloc(sizeof(Expression*)*count);
 
-			if (token->kind != TOKEN_CLOSE_BRACE)
-			while (true) {
-				if (token->kind == TOKEN_COMMA)
-					errort(token, "Missing expression before ','\n");
+				Expression** elem = elems;
 
-				Expression* elem = null;
-				ih_test(token, helper, 0);
-				token = internal_parse_expression(module, token, true, 0, helper, &elem);
+				while (true) {
+					if (token->kind == TOKEN_COMMA)
+						errort(token, "Missing expression before ','\n");
 
-				if (!elem)
-					errort(token, "Expected expression in array literal, not: '%'\n", arg_token(token));
+					ih_check(token, helper, 0);
+					token = internal_parse_expression(module, token, true, 0, helper, elem);
 
-				elems = realloc(elems, sizeof(Expression*) * count, sizeof(Expression*) * (count+1));
-				elems[count++] = elem;
+					if (!*elem)
+						errort(token, "Expected expression in array literal, not: '%'\n", arg_token(token));
 
-				if (token->kind == TOKEN_CLOSE_BRACE)
-					break;
+					elem++;
 
-				if (token->kind != TOKEN_COMMA) {
-					errort(token, "Unexpected token %, expected ',' or '}'\n",
-						arg_token(token)
-					);
+					if (token->kind == TOKEN_CLOSE_BRACE)
+						break;
+
+					if (token->kind != TOKEN_COMMA) {
+						if (is_expression_starter(token->kind) && ih_test(token, helper, 0))
+							errort(token, "Missing ',' before expression\n");
+
+						errort(token, "Unexpected token %, expected ',' or '}'\n", arg_token(token));
+					}
+
+					ih_check(token, helper, -1); // ,
+					token++;
 				}
-
-				ih_test(token, helper, -1); // ,
-				token++;
 			}
 
 			ih_leave(helper);
-			ih_test(token, helper, 0);
-			token++;
+			ih_check(token, helper, 0);
+			token++; // }
 
 			left->array.elems = elems;
 			left->array.elem_count = count;
@@ -536,7 +557,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 				.kind = EXPR_TUPLE,
 			};
 
-			// ih_test(token, helper, 0);
+			// ih_check(token, helper, 0);
 			ih_enter(helper);
 			token++; // {
 
@@ -552,7 +573,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 					errort(token, "Missing expression before ','\n");
 
 				Expression* elem = null;
-				ih_test(token, helper, 0);
+				ih_check(token, helper, 0);
 				token = internal_parse_expression(module, token, true, 0, helper, &elem);
 
 				if (!elem)
@@ -570,7 +591,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 						arg_token(token)
 					);
 
-				ih_test(token, helper, -1);
+				ih_check(token, helper, -1);
 				token++;
 
 				if (token->kind == TOKEN_CLOSE_PAREN)
@@ -578,7 +599,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 			}
 
 			ih_leave(helper);
-			ih_test(token, helper, 0);
+			ih_check(token, helper, 0);
 			token++;
 
 			left->tuple.elems = elems;
@@ -597,7 +618,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 				left->kind = EXPR_SPEC_ARRAY; // []e
 
 				// Take subexpression
-				ih_test(token+1, helper, 0); // e
+				ih_check(token+1, helper, 0); // e
 				token = internal_parse_expression(module, token+1, allow_equals, unaryprec, helper, &left->specifier.sub);
 
 				if (!left->specifier.sub) {
@@ -610,7 +631,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 			Expression* lexpr = null;
 
 			left->kind = EXPR_SPEC_FIXED; // [n]e
-			ih_test(token, helper, 0); // n
+			ih_check(token, helper, 0); // n
 			token = internal_parse_expression(module, token, allow_equals, 0, helper, &lexpr);
 
 			if (!lexpr)
@@ -620,8 +641,8 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 			if (token->kind == TOKEN_DOT_DOT) {
 				left->kind = EXPR_BINARY_SPAN; // [a..b]
 				left->span.left = lexpr;
-				ih_test(token, helper, -1);  // ..
-				ih_test(token+1, helper, 0); // b
+				ih_check(token, helper, -1);  // ..
+				ih_check(token+1, helper, 0); // b
 				token = internal_parse_expression(module, token+1, allow_equals, 0, helper, &left->span.right);
 
 				if (!left->span.right)
@@ -632,13 +653,13 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 				errort(token, "Expected ']', not: %\n", arg_token(token));
 
 			ih_leave(helper);
-			ih_test(token, helper, 0);
+			ih_check(token, helper, 0);
 			token++; // ]
 
 			if (left->kind == EXPR_SPEC_FIXED) {
 				// [N]e
 				left->specifier.length = lexpr;
-				ih_test(token, helper, 0); // e
+				ih_check(token, helper, 0); // e
 				token = internal_parse_expression(module, token, allow_equals, unaryprec, helper, &left->specifier.sub);
 
 				if (!left->specifier.sub)
@@ -668,7 +689,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 		if (is_newline(token) && !helper->bracket_level && token->indent <= helper->indent-1)
 			break;
 
-		ih_test(token, helper, 0);
+		ih_check(token, helper, 0);
 
 		precedence = correct_binary_precedence(precedence, token);
 
@@ -710,7 +731,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 
 				token++;
 
-				ih_test(token, helper, 0);
+				ih_check(token, helper, 0);
 				token = internal_parse_expression(module, token, allow_equals, precedence, helper, &expr->binary.right);
 
 				if (!expr->binary.right) {
@@ -725,7 +746,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 				token++;
 
 				ih_enter(helper);
-				ih_test(token, helper, 0);
+				ih_check(token, helper, 0);
 				token = internal_parse_expression(module, token, allow_equals, 0, helper, &expr->subscript.index);
 
 				if (!expr->subscript.index) {
@@ -736,7 +757,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 					errort(token, "Subscript expression not closed. Expected ']' after index expression, not: %\n", arg_token(token));
 				}
 
-				ih_test(token, helper, -1);
+				ih_check(token, helper, -1);
 				ih_leave(helper);
 				token++;
 			} break;
@@ -756,7 +777,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 				while (true) {
 					// @Todo: Precompute size
 					expr->call.args = realloc(expr->call.args, sizeof(Expression*)*expr->call.arg_count, sizeof(Expression*)*expr->call.arg_count+1);
-					ih_test(token, helper, 0);
+					ih_check(token, helper, 0);
 
 					Expression* arg = null;
 					token = internal_parse_expression(module, token, allow_equals, 0, helper, &arg);
@@ -768,7 +789,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 					expr->call.arg_count++;
 
 					if (token->kind == TOKEN_COMMA) {
-						ih_test(token, helper, -1);
+						ih_check(token, helper, -1);
 						token++;
 						continue;
 					}
@@ -779,7 +800,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 					errort(token, "Unexpected token in function arguments: %\n", arg_token(token));
 				}
 
-				ih_test(token, helper, -1);
+				ih_check(token, helper, -1);
 				ih_leave(helper);
 				token++;
 
@@ -791,7 +812,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 					.ternary.left = left,
 				};
 
-				ih_test(token+1, helper, 0);
+				ih_check(token+1, helper, 0);
 				token = internal_parse_expression(module, token+1, true, precedence, helper, &expr->ternary.middle);
 
 				if (!expr->ternary.middle)
@@ -800,7 +821,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 				if (token->kind != TOKEN_ELSE)
 					errort(token, "Expected 'else' not: %\n", arg_token(token));
 
-				ih_test(token+1, helper, 0);
+				ih_check(token+1, helper, 0);
 				token = internal_parse_expression(module, token+1, allow_equals, precedence, helper, &expr->ternary.right);
 
 				if (!expr->ternary.right)
