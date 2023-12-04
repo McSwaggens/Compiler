@@ -511,7 +511,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 
 			if (token->kind != TOKEN_CLOSE_BRACE) {
 				count = open->comma_count+1;
-				elems = alloc(sizeof(Expression*)*count);
+				elems = stack_alloc(sizeof(Expression*)*count);
 
 				Expression** elem = elems;
 
@@ -570,7 +570,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 
 			if (token->kind != TOKEN_CLOSE_PAREN) {
 				count = open->comma_count+1;
-				elems = alloc(sizeof(Expression*)*count);
+				elems = stack_alloc(sizeof(Expression*)*count);
 
 				Expression** elem = elems;
 
@@ -753,13 +753,11 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 				ih_check(token, helper, 0);
 				token = internal_parse_expression(module, token, allow_equals, 0, helper, &expr->subscript.index);
 
-				if (!expr->subscript.index) {
+				if (!expr->subscript.index)
 					errort(token, "Expression missing in subscript\n");
-				}
 
-				if (token->kind != TOKEN_CLOSE_BRACKET) {
+				if (token->kind != TOKEN_CLOSE_BRACKET)
 					errort(token, "Subscript expression not closed. Expected ']' after index expression, not: %\n", arg_token(token));
-				}
 
 				ih_check(token, helper, -1);
 				ih_leave(helper);
@@ -787,7 +785,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 
 				if (token->kind != TOKEN_CLOSE_PAREN) {
 					count = open->comma_count+1;
-					elems = alloc(sizeof(Expression*)*count);
+					elems = stack_alloc(sizeof(Expression*)*count);
 					Expression** elem = elems;
 
 					while (true) {
@@ -944,9 +942,8 @@ Token* parse_while(Module* module, Token* token, Indent16 indent, Branch* branch
 	branch->kind = BRANCH_WHILE;
 	token++;
 
-	if (!is_expression_starter(token->kind)) {
+	if (!is_expression_starter(token->kind))
 		errort(token, "Missing condition expression in 'while' branch\n");
-	}
 
 	check_indent(token, indent+1);
 	token = parse_expression(module, token, indent+1, true, &branch->cond);
@@ -1276,7 +1273,7 @@ Token* parse_params(Module* module, Function* func, Token* token, Indent16 inden
 
 	if (token->kind != TOKEN_CLOSE_PAREN) {
 		func->param_count = open->comma_count+1;
-		func->params = alloc(sizeof(Variable)*func->param_count);
+		func->params = stack_alloc(sizeof(Variable)*func->param_count);
 		Variable* param = func->params;
 
 		while (true) {
@@ -1337,17 +1334,17 @@ void parse_module(Module* module) {
 	Token* token = module->tokens;
 
 	// PreAllocate functions
-	module->functions = alloc(sizeof(Function)*module->function_count);
+	module->functions = stack_alloc(sizeof(Function)*module->function_count);
 	zero(module->functions, sizeof(Function)*module->function_count);
 	module->function_count = 0;
 
 	// PreAllocate structs
-	module->structs = alloc(sizeof(Struct)*module->struct_count);
+	module->structs = stack_alloc(sizeof(Struct)*module->struct_count);
 	zero(module->structs, sizeof(Struct)*module->struct_count);
 	module->struct_count = 0;
 
 	// PreAllocate enums
-	module->enums = alloc(sizeof(Enum)*module->enum_count);
+	module->enums = stack_alloc(sizeof(Enum)*module->enum_count);
 	zero(module->enums, sizeof(Enum)*module->enum_count);
 	module->enum_count = 0;
 
