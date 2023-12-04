@@ -557,45 +557,49 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 				.kind = EXPR_TUPLE,
 			};
 
-			// ih_check(token, helper, 0);
+			Token* open = token;
+
+			if (!open->closure)
+				errort(open, "Tuple missing closing ')'\n");
+
 			ih_enter(helper);
 			token++; // {
 
-			// print("Starting tuple parse...\n");
-
-			Expression** elems = null;
 			u64 count = 0;
+			Expression** elems = null;
 
+			if (token->kind != TOKEN_CLOSE_PAREN) {
+				count = open->comma_count+1;
+				elems = alloc(sizeof(Expression*)*count);
 
-			if (token->kind != TOKEN_CLOSE_PAREN)
-			while (true) {
-				if (token->kind == TOKEN_COMMA)
-					errort(token, "Missing expression before ','\n");
+				Expression** elem = elems;
 
-				Expression* elem = null;
-				ih_check(token, helper, 0);
-				token = internal_parse_expression(module, token, true, 0, helper, &elem);
+				while (true) {
+					if (token->kind == TOKEN_COMMA)
+						errort(token, "Missing expression before ','\n");
 
-				if (!elem)
-					errort(token, "Expected expression in tuple, not: '%'\n", arg_token(token));
+					ih_check(token, helper, 0);
+					token = internal_parse_expression(module, token, true, 0, helper, elem);
 
-				elems = realloc(elems, sizeof(Expression*) * (count), sizeof(Expression*) * (count+1));
-				// print("elems = %\n", arg_u64((u64)elems));
-				elems[count++] = elem;
+					if (!*elem)
+						errort(token, "Expected expression in tuple, not: '%'\n", arg_token(token));
 
-				if (token->kind == TOKEN_CLOSE_PAREN)
-					break;
+					elem++;
 
-				if (token->kind != TOKEN_COMMA)
-					errort(token, "Unexpected token %, expected ',' or ')'\n",
-						arg_token(token)
-					);
+					if (token->kind == TOKEN_CLOSE_PAREN)
+						break;
 
-				ih_check(token, helper, -1);
-				token++;
+					if (token->kind != TOKEN_COMMA)
+						errort(token, "Unexpected token %, expected ',' or ')'\n",
+							arg_token(token)
+						);
 
-				if (token->kind == TOKEN_CLOSE_PAREN)
-					errort(token, "Missing expression after ','\n");
+					ih_check(token, helper, -1);
+					token++;
+
+					if (token->kind == TOKEN_CLOSE_PAREN)
+						errort(token, "Missing expression after ','\n");
+				}
 			}
 
 			ih_leave(helper);
@@ -770,35 +774,46 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 					.call.args      = null,
 				};
 
+				Token* open = token;
+
+				if (!open->closure)
+					errort(open, "Call arguments missing closing ')'\n");
+
+				Expression** elems = null;
+				u64 count = 0;
+
 				ih_enter(helper);
-				token++;
+				token++; // (
 
-				if (token->kind != TOKEN_CLOSE_PAREN)
-				while (true) {
-					// @Todo: Precompute size
-					expr->call.args = realloc(expr->call.args, sizeof(Expression*)*expr->call.arg_count, sizeof(Expression*)*expr->call.arg_count+1);
-					ih_check(token, helper, 0);
+				if (token->kind != TOKEN_CLOSE_PAREN) {
+					count = open->comma_count+1;
+					elems = alloc(sizeof(Expression*)*count);
+					Expression** elem = elems;
 
-					Expression* arg = null;
-					token = internal_parse_expression(module, token, allow_equals, 0, helper, &arg);
-					expr->call.args[expr->call.arg_count] = arg;
+					while (true) {
+						ih_check(token, helper, 0);
+						token = internal_parse_expression(module, token, allow_equals, 0, helper, elem);
 
-					if (!arg)
-						errort(token, "Invalid function argument, expected expression, not: '%'\n", arg_token(token));
+						if (!*elem)
+							errort(token, "Invalid function argument, expected expression, not: '%'\n", arg_token(token));
 
-					expr->call.arg_count++;
+						elem++;
 
-					if (token->kind == TOKEN_COMMA) {
-						ih_check(token, helper, -1);
-						token++;
-						continue;
+						if (token->kind == TOKEN_COMMA) {
+							ih_check(token, helper, -1);
+							token++;
+							continue;
+						}
+
+						if (token->kind == TOKEN_CLOSE_PAREN)
+							break;
+
+						errort(token, "Unexpected token in function arguments: %\n", arg_token(token));
 					}
-
-					if (token->kind == TOKEN_CLOSE_PAREN)
-						break;
-
-					errort(token, "Unexpected token in function arguments: %\n", arg_token(token));
 				}
+
+				expr->call.args = elems;
+				expr->call.arg_count = count;
 
 				ih_check(token, helper, -1);
 				ih_leave(helper);
