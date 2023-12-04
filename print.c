@@ -143,16 +143,16 @@ void write_token_kind(OutputBuffer* buffer, TokenKind kind) {
 
 		case TOKEN_BYTE:                str = "byte";     break;
 		case TOKEN_BOOL:                str = "bool";     break;
-		case TOKEN_INT:                 str = "s";      break;
-		case TOKEN_INT8:                str = "s8";     break;
-		case TOKEN_INT16:               str = "s16";    break;
-		case TOKEN_INT32:               str = "s32";    break;
-		case TOKEN_INT64:               str = "s64";    break;
-		case TOKEN_UINT:                str = "u";     break;
-		case TOKEN_UINT8:               str = "u8";    break;
-		case TOKEN_UINT16:              str = "u16";   break;
-		case TOKEN_UINT32:              str = "u32";   break;
-		case TOKEN_UINT64:              str = "u64";   break;
+		case TOKEN_INT:                 str = "int";      break;
+		case TOKEN_INT8:                str = "int8";     break;
+		case TOKEN_INT16:               str = "int16";    break;
+		case TOKEN_INT32:               str = "int32";    break;
+		case TOKEN_INT64:               str = "int64";    break;
+		case TOKEN_UINT:                str = "uint";     break;
+		case TOKEN_UINT8:               str = "uint8";    break;
+		case TOKEN_UINT16:              str = "uint16";   break;
+		case TOKEN_UINT32:              str = "uint32";   break;
+		case TOKEN_UINT64:              str = "uint64";   break;
 		case TOKEN_FLOAT32:             str = "float32";  break;
 		case TOKEN_FLOAT64:             str = "float64";  break;
 		case TOKEN_TYPE_ID:             str = "type_id";  break;
