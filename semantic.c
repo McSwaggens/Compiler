@@ -129,6 +129,25 @@ void scan_expression(Module* module, Expression* expr, Scope* scope) {
 
 		case EXPR_LITERAL: {
 			expr->flags |= VAR_CONSTANT;
+			Token* token = expr->term.token;
+
+			switch (token->kind) {
+				case TOKEN_LITERAL_INT8:    expr->type = TYPE_INT8;   break;
+				case TOKEN_LITERAL_INT16:   expr->type = TYPE_INT16;  break;
+				case TOKEN_LITERAL_INT32:   expr->type = TYPE_INT32;  break;
+				case TOKEN_LITERAL_INT64:   expr->type = TYPE_INT64;  break;
+				case TOKEN_LITERAL_UINT8:   expr->type = TYPE_UINT8;  break;
+				case TOKEN_LITERAL_UINT16:  expr->type = TYPE_UINT16; break;
+				case TOKEN_LITERAL_UINT32:  expr->type = TYPE_UINT32; break;
+				case TOKEN_LITERAL_UINT64:  expr->type = TYPE_UINT64; break;
+
+				case TOKEN_LITERAL_FLOAT32: expr->type = TYPE_FLOAT32; break;
+				case TOKEN_LITERAL_FLOAT64: expr->type = TYPE_FLOAT64; break;
+
+				case TOKEN_LITERAL_STRING:  expr->type = get_fixed_type(TYPE_INT8, token->string.length); break;
+
+				default: assert_unreachable();
+			}
 		} return;
 
 		case EXPR_FUNCTION: {
@@ -145,6 +164,7 @@ void scan_expression(Module* module, Expression* expr, Scope* scope) {
 
 		case EXPR_BASETYPE_PRIMITIVE: {
 			expr->type = TYPE_TYPEID;
+			expr->flags |= EXPR_FLAG_CONSTANT;
 		} break;
 
 		case EXPR_BASETYPE_IDENTIFIER: {

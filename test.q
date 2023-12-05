@@ -1,10 +1,3 @@
-Bar():
-
-Foo(a: int, b: int, c: int, d: int):
-	Foo(
-		1,
-		2,
-		3,
-		4
-	)
+Foo():
+	a := 1 + 2
 
