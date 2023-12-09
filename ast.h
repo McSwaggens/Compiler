@@ -23,6 +23,7 @@ typedef struct EnumField    EnumField;
 typedef struct Match        Match;
 typedef struct MatchGroup   MatchGroup;
 
+typedef enum AstKind        AstKind;
 typedef enum StatementKind  StatementKind;
 typedef enum ExpressionKind ExpressionKind;
 typedef enum BranchKind     BranchKind;
@@ -32,25 +33,112 @@ typedef enum ScopeFlags      ScopeFlags;
 typedef enum VariableFlags   VariableFlags;
 typedef enum ExpressionFlags ExpressionFlags;
 
+typedef union Ast Ast;
+
+enum AstKind {
+	AST_INVALID = 0,
+
+	AST_FUNCTION,
+	AST_VARIABLE,
+
+	AST_STRUCT,
+	AST_STRUCT_MEMBER,
+
+	AST_ENUM,
+	AST_ENUM_MEMBER,
+
+	AST_EXPR_NULL,
+	AST_EXPR_TRUE,
+	AST_EXPR_FALSE,
+	AST_EXPR_LITERAL,
+	AST_EXPR_FUNCTION,
+	AST_EXPR_BASETYPE_PRIMITIVE,
+	AST_EXPR_BASETYPE_IDENTIFIER,
+	AST_EXPR_IDENTIFIER_CONSTANT,
+	AST_EXPR_IDENTIFIER_FORMAL,
+	AST_EXPR_IDENTIFIER_VARIABLE,
+	AST_EXPR_ARRAY,
+	AST_EXPR_TUPLE,
+	AST_EXPR_SPEC_PTR,
+	AST_EXPR_SPEC_ARRAY,
+	AST_EXPR_SPEC_FIXED,
+	AST_EXPR_UNARY_PTR,
+	AST_EXPR_UNARY_REF,
+	AST_EXPR_UNARY_ABS,
+	AST_EXPR_UNARY_INVERSE,
+	AST_EXPR_UNARY_NOT,
+	AST_EXPR_UNARY_BIT_NOT,
+	AST_EXPR_UNARY_IMPLICIT_CAST,
+	AST_EXPR_BINARY_ADD,
+	AST_EXPR_BINARY_SUB,
+	AST_EXPR_BINARY_MUL,
+	AST_EXPR_BINARY_DIV,
+	AST_EXPR_BINARY_MOD,
+	AST_EXPR_BINARY_BIT_XOR,
+	AST_EXPR_BINARY_BIT_AND,
+	AST_EXPR_BINARY_BIT_OR,
+	AST_EXPR_BINARY_OR,
+	AST_EXPR_BINARY_AND,
+	AST_EXPR_BINARY_EQUAL,
+	AST_EXPR_BINARY_NOT_EQUAL,
+	AST_EXPR_BINARY_LESS,
+	AST_EXPR_BINARY_LESS_OR_EQUAL,
+	AST_EXPR_BINARY_GREATER,
+	AST_EXPR_BINARY_GREATER_OR_EQUAL,
+	AST_EXPR_BINARY_DOT,
+	AST_EXPR_BINARY_DOT_DOT,
+	AST_EXPR_BINARY_LSHIFT,
+	AST_EXPR_BINARY_RSHIFT,
+	AST_EXPR_BINARY_SPAN,
+	AST_EXPR_CALL,
+	AST_EXPR_INDEX,
+	AST_EXPR_TERNARY_IF_ELSE,
+
+	AST_STATEMENT_ASSIGNMENT,
+	AST_STATEMENT_ASSIGNMENT_LSH,
+	AST_STATEMENT_ASSIGNMENT_RSH,
+	AST_STATEMENT_ASSIGNMENT_DIV,
+	AST_STATEMENT_ASSIGNMENT_MOD,
+	AST_STATEMENT_ASSIGNMENT_ADD,
+	AST_STATEMENT_ASSIGNMENT_SUB,
+	AST_STATEMENT_ASSIGNMENT_MUL,
+	AST_STATEMENT_ASSIGNMENT_BIT_XOR,
+	AST_STATEMENT_ASSIGNMENT_BIT_AND,
+	AST_STATEMENT_ASSIGNMENT_BIT_OR,
+	AST_STATEMENT_EXPRESSION,
+	AST_STATEMENT_CONTROLFLOW,
+	AST_STATEMENT_VARDECL,
+	AST_STATEMENT_RETURN,
+	AST_STATEMENT_BREAK,
+	AST_STATEMENT_CONTINUE,
+	AST_STATEMENT_INC,
+	AST_STATEMENT_DEC,
+};
+
 struct StructField {
+	AstKind kind : 8;
 	Token* name;
-	Expression* type;
+	// TypeID type;
+	Expression* type_expr;
 };
 
 struct Struct {
+	AstKind kind : 8;
 	Token* name;
 	StructField* fields;
 	u64 field_count;
 };
 
 struct EnumField {
+	AstKind kind : 8;
 	Token* name;
 	Expression* value;
 };
 
 struct Enum {
+	AstKind kind : 8;
 	Token* name;
-	Expression* type;
+	Expression* type_expr;
 	EnumField* fields;
 	u64 field_count;
 };
@@ -77,6 +165,7 @@ struct Code {
 };
 
 struct Function {
+	AstKind kind : 8;
 	Token* name;
 	Variable* params;
 	u64 param_count;
@@ -86,67 +175,15 @@ struct Function {
 	struct Procedure* proc;
 };
 
-enum ExpressionKind {
-	EXPR_NULL,
-	EXPR_TRUE,
-	EXPR_FALSE,
-	EXPR_LITERAL,
-	EXPR_FUNCTION,
-	EXPR_BASETYPE_PRIMITIVE,
-	EXPR_BASETYPE_IDENTIFIER,
-	EXPR_IDENTIFIER_CONSTANT,
-	EXPR_IDENTIFIER_FORMAL,
-	EXPR_IDENTIFIER_VARIABLE,
-
-	EXPR_ARRAY,
-	EXPR_TUPLE,
-
-	EXPR_SPEC_PTR,
-	EXPR_SPEC_ARRAY,
-	EXPR_SPEC_FIXED,
-
-	EXPR_UNARY_PTR,
-	EXPR_UNARY_REF,
-	EXPR_UNARY_ABS,
-	EXPR_UNARY_INVERSE,
-	EXPR_UNARY_NOT,
-	EXPR_UNARY_BIT_NOT,
-
-	EXPR_BINARY_ADD,
-	EXPR_BINARY_SUB,
-	EXPR_BINARY_MUL,
-	EXPR_BINARY_DIV,
-	EXPR_BINARY_MOD,
-	EXPR_BINARY_BIT_XOR,
-	EXPR_BINARY_BIT_AND,
-	EXPR_BINARY_BIT_OR,
-	EXPR_BINARY_OR,
-	EXPR_BINARY_AND,
-	EXPR_BINARY_EQUAL,
-	EXPR_BINARY_NOT_EQUAL,
-	EXPR_BINARY_LESS,
-	EXPR_BINARY_LESS_OR_EQUAL,
-	EXPR_BINARY_GREATER,
-	EXPR_BINARY_GREATER_OR_EQUAL,
-	EXPR_BINARY_DOT,
-	EXPR_BINARY_DOT_DOT,
-	EXPR_BINARY_LSHIFT,
-	EXPR_BINARY_RSHIFT,
-	EXPR_BINARY_SPAN,
-	EXPR_CALL,
-	EXPR_INDEX,
-
-	EXPR_TERNARY_IF_ELSE,
-};
-
 enum ExpressionFlags {
 	EXPR_FLAG_CONSTANT = 0x01,
 };
 
 struct Expression {
-	ExpressionKind kind : 8;
+	AstKind kind : 8;
 	ExpressionFlags flags : 8;
 	TypeID type;
+	Ast* user;
 
 	union {
 		struct {
@@ -176,7 +213,12 @@ struct Expression {
 		struct {
 			Expression** elems;
 			u64 elem_count;
-		} tuple, fixed, array;
+		} tuple;
+
+		struct {
+			Expression** elems;
+			u64 elem_count;
+		} array;
 
 		struct {
 			Expression* sub;
@@ -238,9 +280,10 @@ struct Match {
 };
 
 struct Branch {
+	AstKind kind : 8;
 	Code code;
-	BranchKind kind;
-	ClauseKind clause;
+	BranchKind branch_kind;
+	ClauseKind clause_kind;
 	Variable* var;
 	Expression* cond;
 	Expression* new;
@@ -264,30 +307,6 @@ struct Break {
 struct Continue {
 };
 
-enum StatementKind {
-	STATEMENT_ASSIGNMENT,
-
-	STATEMENT_ASSIGNMENT_LSH,
-	STATEMENT_ASSIGNMENT_RSH,
-	STATEMENT_ASSIGNMENT_DIV,
-	STATEMENT_ASSIGNMENT_MOD,
-	STATEMENT_ASSIGNMENT_ADD,
-	STATEMENT_ASSIGNMENT_SUB,
-	STATEMENT_ASSIGNMENT_MUL,
-	STATEMENT_ASSIGNMENT_BIT_XOR,
-	STATEMENT_ASSIGNMENT_BIT_AND,
-	STATEMENT_ASSIGNMENT_BIT_OR,
-
-	STATEMENT_EXPRESSION,
-	STATEMENT_CONTROLFLOW,
-	STATEMENT_VARDECL,
-	STATEMENT_RETURN,
-	STATEMENT_BREAK,
-	STATEMENT_CONTINUE,
-	STATEMENT_INC,
-	STATEMENT_DEC,
-};
-
 enum VariableFlags {
 	VAR_VARIABLE = 0x1,
 	VAR_CONSTANT = 0x2,
@@ -296,6 +315,7 @@ enum VariableFlags {
 };
 
 struct Variable {
+	AstKind kind : 8;
 	VariableFlags flags;
 	Token* name;
 	Expression* type_expr;
@@ -305,7 +325,7 @@ struct Variable {
 };
 
 struct Statement {
-	StatementKind kind;
+	AstKind kind : 8;
 
 	union {
 		Assignment assign;
@@ -339,14 +359,21 @@ struct Module {
 	char** usertype_names;
 };
 
-static
-Module* find_module(Token* token);
+union Ast {
+	AstKind     kind : 8;
+	Function    func;
+	Expression  expr;
+	Statement   statement;
+	Variable    var;
+	Struct      ustruct;
+	StructField ustruct_field;
+	Enum        uenum;
+	EnumField   uenum_field;
+};
 
-static
-TokenAux* get_aux(Module* module, Token* token);
-
-static
-Position get_pos(Module* module, Token* token);
+static Module* find_module(Token* token);
+static TokenAux* get_aux(Module* module, Token* token);
+static Position get_pos(Module* module, Token* token);
 
 #endif // AST_H
 

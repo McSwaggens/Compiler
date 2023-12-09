@@ -12,8 +12,7 @@ static Value vinst(Instruction* inst) { return (Value){ .kind = VALUE_INSTRUCTIO
 static Value vblock(Block* block)     { return (Value){ .kind = VALUE_BLOCK,       .block = block }; }
 static Value vproc(Procedure* proc)   { return (Value){ .kind = VALUE_PROCEDURE,   .procedure = proc }; }
 
-static
-char* instruction_kind_to_cstring(InstructionKind kind) {
+static char* instruction_kind_to_cstring(InstructionKind kind) {
 	switch (kind) {
 		case INSTRUCTION_NOOP:     return "noop";
 		case INSTRUCTION_STACK:    return "stack";
@@ -80,8 +79,7 @@ char* instruction_kind_to_cstring(InstructionKind kind) {
 	}
 };
 
-static
-bool is_value_instruction(InstructionKind kind) {
+static bool is_value_instruction(InstructionKind kind) {
 	switch (kind) {
 		case INSTRUCTION_BRANCH:
 		case INSTRUCTION_JUMP:
@@ -124,8 +122,7 @@ void print_procedure(Procedure* proc) {
 	}
 }
 
-static
-Procedure* make_procedure(String name) {
+static Procedure* make_procedure(String name) {
 	Procedure* proc = alloc(sizeof(Procedure));
 
 	*proc = (Procedure){
@@ -142,8 +139,7 @@ Procedure* make_procedure(String name) {
 	return proc;
 }
 
-static
-Block* add_block(Procedure* proc) {
+static Block* add_block(Procedure* proc) {
 	Block* block = alloc(sizeof(Block));
 	zero(block, sizeof(Block));
 	block->id = proc->block_count;
@@ -161,8 +157,7 @@ Block* add_block(Procedure* proc) {
 	return block;
 }
 
-static
-void reg_user(Value value, Instruction* user) {
+static void reg_user(Value value, Instruction* user) {
 	UserStore* user_store = null;
 
 	switch (value.kind) {
@@ -185,8 +180,7 @@ void reg_user(Value value, Instruction* user) {
 	user_store->instructions[user_store->count++] = user;
 }
 
-static
-Instruction* add_instruction(Block* block, Instruction inst) {
+static Instruction* add_instruction(Block* block, Instruction inst) {
 	Instruction* instruction = alloc(sizeof(Instruction));
 	*instruction = inst;
 	instruction->block = block;
@@ -211,13 +205,11 @@ Instruction* add_instruction(Block* block, Instruction inst) {
 	return instruction;
 }
 
-static
-void set_init_function(Function* func) {
+static void set_init_function(Function* func) {
 	initproc = func->proc;
 }
 
-static
-Instruction* convert_param(Block* block, Variable* var, s64 n) {
+static Instruction* convert_param(Block* block, Variable* var, s64 n) {
 	Instruction* iparam = add_instruction(block, (Instruction){
 		.kind = INSTRUCTION_PARAM,
 		.a    = vint(n),
@@ -239,94 +231,95 @@ Instruction* convert_param(Block* block, Variable* var, s64 n) {
 	return istack;
 }
 
-static
-Value convert_expression(Expression* expr, Block* block) {
+static Value convert_expression(Expression* expr, Block* block) {
 	switch (expr->kind) {
-		case EXPR_NULL:  return vint(0);
-		case EXPR_TRUE:  return vint(1);
-		case EXPR_FALSE: return vint(0);
+		default: assert_unreachable();
 
-		case EXPR_LITERAL: {
+		case AST_EXPR_NULL:  return vint(0);
+		case AST_EXPR_TRUE:  return vint(1);
+		case AST_EXPR_FALSE: return vint(0);
+
+		case AST_EXPR_LITERAL: {
 			return vint(expr->term.token->i);
 		} break;
 
-		case EXPR_FUNCTION: {
+		case AST_EXPR_FUNCTION: {
 			return vproc(expr->term.func->proc);
 		} break;
 
-		case EXPR_BASETYPE_PRIMITIVE:
-		case EXPR_BASETYPE_IDENTIFIER:
+		case AST_EXPR_BASETYPE_PRIMITIVE:
+		case AST_EXPR_BASETYPE_IDENTIFIER:
 
-		case EXPR_ARRAY:
-		case EXPR_TUPLE: {
+		case AST_EXPR_ARRAY:
+		case AST_EXPR_TUPLE: {
 			return vint(0);
 			assert(0);
 		} break;
 
-		case EXPR_IDENTIFIER_CONSTANT:
-		case EXPR_IDENTIFIER_VARIABLE: {
+		case AST_EXPR_IDENTIFIER_CONSTANT:
+		case AST_EXPR_IDENTIFIER_VARIABLE: {
 			return vinst(expr->term.var->stack);
 		} break;
 
-		case EXPR_IDENTIFIER_FORMAL: {
+		case AST_EXPR_IDENTIFIER_FORMAL: {
 			return vproc(expr->term.func->proc);
 		} break;
 
-		case EXPR_UNARY_ABS:
-		case EXPR_UNARY_INVERSE:
-		case EXPR_UNARY_NOT:
-		case EXPR_UNARY_BIT_NOT:
-		case EXPR_UNARY_PTR:
-		case EXPR_UNARY_REF: {
+		case AST_EXPR_UNARY_ABS:
+		case AST_EXPR_UNARY_INVERSE:
+		case AST_EXPR_UNARY_NOT:
+		case AST_EXPR_UNARY_BIT_NOT:
+		case AST_EXPR_UNARY_PTR:
+		case AST_EXPR_UNARY_REF: {
 			return vint(0);
 			assert(0);
 		} break;
 
-		case EXPR_SPEC_PTR:
-		case EXPR_SPEC_ARRAY:
-		case EXPR_SPEC_FIXED: {
+		case AST_EXPR_SPEC_PTR:
+		case AST_EXPR_SPEC_ARRAY:
+		case AST_EXPR_SPEC_FIXED: {
 			// Interpreter?
 			assert(0);
 		} break;
 
-		case EXPR_BINARY_ADD:
-		case EXPR_BINARY_SUB:
-		case EXPR_BINARY_MUL:
-		case EXPR_BINARY_DIV:
-		case EXPR_BINARY_MOD:
-		case EXPR_BINARY_BIT_XOR:
-		case EXPR_BINARY_BIT_AND:
-		case EXPR_BINARY_BIT_OR:
-		case EXPR_BINARY_LSHIFT:
-		case EXPR_BINARY_RSHIFT:
-		case EXPR_BINARY_OR:
-		case EXPR_BINARY_AND:
-		case EXPR_BINARY_EQUAL:
-		case EXPR_BINARY_NOT_EQUAL:
-		case EXPR_BINARY_LESS:
-		case EXPR_BINARY_LESS_OR_EQUAL:
-		case EXPR_BINARY_GREATER:
-		case EXPR_BINARY_GREATER_OR_EQUAL: {
+		case AST_EXPR_BINARY_ADD:
+		case AST_EXPR_BINARY_SUB:
+		case AST_EXPR_BINARY_MUL:
+		case AST_EXPR_BINARY_DIV:
+		case AST_EXPR_BINARY_MOD:
+		case AST_EXPR_BINARY_BIT_XOR:
+		case AST_EXPR_BINARY_BIT_AND:
+		case AST_EXPR_BINARY_BIT_OR:
+		case AST_EXPR_BINARY_LSHIFT:
+		case AST_EXPR_BINARY_RSHIFT:
+		case AST_EXPR_BINARY_OR:
+		case AST_EXPR_BINARY_AND:
+		case AST_EXPR_BINARY_EQUAL:
+		case AST_EXPR_BINARY_NOT_EQUAL:
+		case AST_EXPR_BINARY_LESS:
+		case AST_EXPR_BINARY_LESS_OR_EQUAL:
+		case AST_EXPR_BINARY_GREATER:
+		case AST_EXPR_BINARY_GREATER_OR_EQUAL: {
 			static const InstructionKind kindlut[][2] = {
 				//                                 SIGNED               UNSIGNED
-				[EXPR_BINARY_ADD]              = { INSTRUCTION_ADD,     INSTRUCTION_ADD     },
-				[EXPR_BINARY_SUB]              = { INSTRUCTION_SUB,     INSTRUCTION_SUB     },
-				[EXPR_BINARY_MUL]              = { INSTRUCTION_SMUL,    INSTRUCTION_UMUL    },
-				[EXPR_BINARY_DIV]              = { INSTRUCTION_SDIV,    INSTRUCTION_UDIV    },
-				[EXPR_BINARY_MOD]              = { INSTRUCTION_SMOD,    INSTRUCTION_UMOD    },
-				[EXPR_BINARY_BIT_XOR]          = { INSTRUCTION_BIT_XOR, INSTRUCTION_BIT_XOR },
-				[EXPR_BINARY_BIT_AND]          = { INSTRUCTION_BIT_AND, INSTRUCTION_BIT_AND },
-				[EXPR_BINARY_BIT_OR]           = { INSTRUCTION_BIT_OR,  INSTRUCTION_BIT_OR  },
-				[EXPR_BINARY_LSHIFT]           = { INSTRUCTION_SLSH,    INSTRUCTION_ULSH    },
-				[EXPR_BINARY_RSHIFT]           = { INSTRUCTION_SRSH,    INSTRUCTION_URSH    },
-				[EXPR_BINARY_OR]               = { INSTRUCTION_OR,      INSTRUCTION_OR      },
-				[EXPR_BINARY_AND]              = { INSTRUCTION_AND,     INSTRUCTION_AND     },
-				[EXPR_BINARY_EQUAL]            = { INSTRUCTION_CMPEQ,   INSTRUCTION_CMPEQ   },
-				[EXPR_BINARY_NOT_EQUAL]        = { INSTRUCTION_CMPNE,   INSTRUCTION_CMPNE   },
-				[EXPR_BINARY_LESS]             = { INSTRUCTION_SCMPL,   INSTRUCTION_UCMPL   },
-				[EXPR_BINARY_LESS_OR_EQUAL]    = { INSTRUCTION_SCMPLE,  INSTRUCTION_UCMPLE  },
-				[EXPR_BINARY_GREATER]          = { INSTRUCTION_SCMPG,   INSTRUCTION_UCMPG   },
-				[EXPR_BINARY_GREATER_OR_EQUAL] = { INSTRUCTION_SCMPGE,  INSTRUCTION_UCMPGE  },
+				[AST_EXPR_BINARY_ADD]              = { INSTRUCTION_ADD,     INSTRUCTION_ADD     },
+				[AST_EXPR_BINARY_SUB]              = { INSTRUCTION_SUB,     INSTRUCTION_SUB     },
+				[AST_EXPR_BINARY_MUL]              = { INSTRUCTION_SMUL,    INSTRUCTION_UMUL    },
+				[AST_EXPR_BINARY_DIV]              = { INSTRUCTION_SDIV,    INSTRUCTION_UDIV    },
+				[AST_EXPR_BINARY_MOD]              = { INSTRUCTION_SMOD,    INSTRUCTION_UMOD    },
+				[AST_EXPR_BINARY_BIT_XOR]          = { INSTRUCTION_BIT_XOR, INSTRUCTION_BIT_XOR },
+				[AST_EXPR_BINARY_BIT_AND]          = { INSTRUCTION_BIT_AND, INSTRUCTION_BIT_AND },
+				[AST_EXPR_BINARY_BIT_OR]           = { INSTRUCTION_BIT_OR,  INSTRUCTION_BIT_OR  },
+				[AST_EXPR_BINARY_LSHIFT]           = { INSTRUCTION_SLSH,    INSTRUCTION_ULSH    },
+				[AST_EXPR_BINARY_RSHIFT]           = { INSTRUCTION_SRSH,    INSTRUCTION_URSH    },
+				[AST_EXPR_BINARY_OR]               = { INSTRUCTION_OR,      INSTRUCTION_OR      },
+				[AST_EXPR_BINARY_AND]              = { INSTRUCTION_AND,     INSTRUCTION_AND     },
+				[AST_EXPR_BINARY_EQUAL]            = { INSTRUCTION_CMPEQ,   INSTRUCTION_CMPEQ   },
+				[AST_EXPR_BINARY_NOT_EQUAL]        = { INSTRUCTION_CMPNE,   INSTRUCTION_CMPNE   },
+				[AST_EXPR_BINARY_LESS]             = { INSTRUCTION_SCMPL,   INSTRUCTION_UCMPL   },
+				[AST_EXPR_BINARY_LESS_OR_EQUAL]    = { INSTRUCTION_SCMPLE,  INSTRUCTION_UCMPLE  },
+				[AST_EXPR_BINARY_GREATER]          = { INSTRUCTION_SCMPG,   INSTRUCTION_UCMPG   },
+				[AST_EXPR_BINARY_GREATER_OR_EQUAL] = { INSTRUCTION_SCMPGE,  INSTRUCTION_UCMPGE  },
 			};
 
 			bool unsign = is_unsigned(expr->binary.left->type);
@@ -343,18 +336,18 @@ Value convert_expression(Expression* expr, Block* block) {
 			return vinst(iadd);
 		}
 
-		case EXPR_BINARY_DOT: {
+		case AST_EXPR_BINARY_DOT: {
 			// @Todo
 			assert(0);	
 		} break;
 
-		case EXPR_BINARY_DOT_DOT:
-		case EXPR_BINARY_SPAN: {
+		case AST_EXPR_BINARY_DOT_DOT:
+		case AST_EXPR_BINARY_SPAN: {
 			return vint(0);
 			assert(0);	
 		} break;
 
-		case EXPR_CALL: {
+		case AST_EXPR_CALL: {
 			Value vleft  = convert_expression(expr->call.function, block);
 
 			for (u32 i = 0; i < expr->call.arg_count; i++) {
@@ -370,13 +363,13 @@ Value convert_expression(Expression* expr, Block* block) {
 			return vinst(icall);
 		} break;
 
-		case EXPR_INDEX: {
+		case AST_EXPR_INDEX: {
 			Value varray = convert_expression(expr->subscript.base, block);
 			Value vindex = convert_expression(expr->subscript.index, block);
 			return varray;
 		} break;
 
-		case EXPR_TERNARY_IF_ELSE: {
+		case AST_EXPR_TERNARY_IF_ELSE: {
 			return vint(0);
 			assert(0);	
 		} break;
@@ -386,8 +379,7 @@ Value convert_expression(Expression* expr, Block* block) {
 	return NONE;
 }
 
-static
-Value load(Block* block, Value v) {
+static Value load(Block* block, Value v) {
 	return vinst(
 		add_instruction(block,
 			(Instruction){
@@ -398,8 +390,7 @@ Value load(Block* block, Value v) {
 	);
 }
 
-static
-void store(Block* block, Value dest, Value v) {
+static void store(Block* block, Value dest, Value v) {
 	add_instruction(block,
 		(Instruction){
 			.kind = INSTRUCTION_STORE,
@@ -409,8 +400,7 @@ void store(Block* block, Value dest, Value v) {
 	);
 }
 
-static
-Value convert_expression_deref(Expression* expr, Block* block) {
+static Value convert_expression_deref(Expression* expr, Block* block) {
 	Value v = convert_expression(expr, block);
 
 	if (is_ref(expr->type)) {
@@ -420,36 +410,37 @@ Value convert_expression_deref(Expression* expr, Block* block) {
 	return v;
 }
 
-static
-void convert_statement(Statement* statement, Block* block) {
+static void convert_statement(Statement* statement, Block* block) {
 	switch (statement->kind) {
-		case STATEMENT_ASSIGNMENT: {
+		default: assert_unreachable();
+
+		case AST_STATEMENT_ASSIGNMENT: {
 			Value vleft  = convert_expression_deref(statement->assign.left, block);
 			Value vright = convert_expression(statement->assign.right, block);
 			store(block, vleft, vright);
 		} break;
 
-		case STATEMENT_ASSIGNMENT_LSH:
-		case STATEMENT_ASSIGNMENT_RSH:
-		case STATEMENT_ASSIGNMENT_DIV:
-		case STATEMENT_ASSIGNMENT_MOD:
-		case STATEMENT_ASSIGNMENT_ADD:
-		case STATEMENT_ASSIGNMENT_SUB:
-		case STATEMENT_ASSIGNMENT_MUL:
-		case STATEMENT_ASSIGNMENT_BIT_XOR:
-		case STATEMENT_ASSIGNMENT_BIT_AND:
-		case STATEMENT_ASSIGNMENT_BIT_OR: {
+		case AST_STATEMENT_ASSIGNMENT_LSH:
+		case AST_STATEMENT_ASSIGNMENT_RSH:
+		case AST_STATEMENT_ASSIGNMENT_DIV:
+		case AST_STATEMENT_ASSIGNMENT_MOD:
+		case AST_STATEMENT_ASSIGNMENT_ADD:
+		case AST_STATEMENT_ASSIGNMENT_SUB:
+		case AST_STATEMENT_ASSIGNMENT_MUL:
+		case AST_STATEMENT_ASSIGNMENT_BIT_XOR:
+		case AST_STATEMENT_ASSIGNMENT_BIT_AND:
+		case AST_STATEMENT_ASSIGNMENT_BIT_OR: {
 			InstructionKind lut[] = {
-				[STATEMENT_ASSIGNMENT_ADD]     = INSTRUCTION_ADD,
-				[STATEMENT_ASSIGNMENT_SUB]     = INSTRUCTION_SUB,
-				[STATEMENT_ASSIGNMENT_MUL]     = INSTRUCTION_SMUL,
-				[STATEMENT_ASSIGNMENT_DIV]     = INSTRUCTION_SDIV,
-				[STATEMENT_ASSIGNMENT_MOD]     = INSTRUCTION_SMOD,
-				[STATEMENT_ASSIGNMENT_LSH]     = INSTRUCTION_SLSH,
-				[STATEMENT_ASSIGNMENT_RSH]     = INSTRUCTION_SRSH,
-				[STATEMENT_ASSIGNMENT_BIT_XOR] = INSTRUCTION_BIT_XOR,
-				[STATEMENT_ASSIGNMENT_BIT_AND] = INSTRUCTION_BIT_AND,
-				[STATEMENT_ASSIGNMENT_BIT_OR]  = INSTRUCTION_BIT_OR,
+				[AST_STATEMENT_ASSIGNMENT_ADD]     = INSTRUCTION_ADD,
+				[AST_STATEMENT_ASSIGNMENT_SUB]     = INSTRUCTION_SUB,
+				[AST_STATEMENT_ASSIGNMENT_MUL]     = INSTRUCTION_SMUL,
+				[AST_STATEMENT_ASSIGNMENT_DIV]     = INSTRUCTION_SDIV,
+				[AST_STATEMENT_ASSIGNMENT_MOD]     = INSTRUCTION_SMOD,
+				[AST_STATEMENT_ASSIGNMENT_LSH]     = INSTRUCTION_SLSH,
+				[AST_STATEMENT_ASSIGNMENT_RSH]     = INSTRUCTION_SRSH,
+				[AST_STATEMENT_ASSIGNMENT_BIT_XOR] = INSTRUCTION_BIT_XOR,
+				[AST_STATEMENT_ASSIGNMENT_BIT_AND] = INSTRUCTION_BIT_AND,
+				[AST_STATEMENT_ASSIGNMENT_BIT_OR]  = INSTRUCTION_BIT_OR,
 			};
 
 			Value vleft  = convert_expression(statement->assign.left, block);
@@ -468,14 +459,14 @@ void convert_statement(Statement* statement, Block* block) {
 		} break;
 
 
-		case STATEMENT_EXPRESSION: {
+		case AST_STATEMENT_EXPRESSION: {
 			convert_expression(statement->expr, block);
 		} break;
 
-		case STATEMENT_CONTROLFLOW: {
+		case AST_STATEMENT_CONTROLFLOW: {
 		} break;
 
-		case STATEMENT_VARDECL: {
+		case AST_STATEMENT_VARDECL: {
 			Variable* var = statement->var;
 			var->stack = add_instruction(block, (Instruction){
 				.kind = INSTRUCTION_STACK,
@@ -488,7 +479,7 @@ void convert_statement(Statement* statement, Block* block) {
 			}
 		} break;
 
-		case STATEMENT_RETURN: {
+		case AST_STATEMENT_RETURN: {
 			Value retval = NONE;
 
 			if (statement->ret.expr) {
@@ -500,15 +491,15 @@ void convert_statement(Statement* statement, Block* block) {
 			});
 		} break;
 
-		case STATEMENT_BREAK: {
+		case AST_STATEMENT_BREAK: {
 		} break;
 
-		case STATEMENT_CONTINUE: {
+		case AST_STATEMENT_CONTINUE: {
 		} break;
 
-		case STATEMENT_INC:
-		case STATEMENT_DEC: {
-			int dir = statement->kind == STATEMENT_INC ? 1 : -1;
+		case AST_STATEMENT_INC:
+		case AST_STATEMENT_DEC: {
+			int dir = statement->kind == AST_STATEMENT_INC ? 1 : -1;
 			Value vexpr_ptr = convert_expression(statement->expr, block);
 			Type* type = null;
 
@@ -534,8 +525,7 @@ void convert_statement(Statement* statement, Block* block) {
 	}
 }
 
-static
-void convert_code(Code* code, Block* block) {
+static void convert_code(Code* code, Block* block) {
 	for (u32 i = 0; i < code->statement_count; i++) {
 		Statement* statement = &code->statements[i];
 		convert_statement(statement, block);
@@ -543,8 +533,7 @@ void convert_code(Code* code, Block* block) {
 }
 
 // Probs need some params here to indicate the instance of the function? (Constant arguments)
-static
-void convert_function(Function* func) {
+static void convert_function(Function* func) {
 	Procedure* proc = func->proc;
 	proc->entry = add_block(proc);
 
@@ -556,16 +545,14 @@ void convert_function(Function* func) {
 	convert_code(&func->code, proc->entry);
 }
 
-static
-void preconvert_module(Module* module) {
+static void preconvert_module(Module* module) {
 	for (u32 i = 0; i < module->function_count; i++) {
 		Function* func = &module->functions[i];
 		func->proc = make_procedure(func->name->string);
 	}
 }
 
-static
-void convert_module(Module* module) {
+static void convert_module(Module* module) {
 	for (u32 i = 0; i < module->function_count; i++) {
 		Function* func = &module->functions[i];
 		Procedure* proc = func->proc;
@@ -579,8 +566,7 @@ void convert_module(Module* module) {
 	}
 }
 
-static
-void init_ir(void) {
+static void init_ir(void) {
 	initproc = null;
 	procedure_count = 0;
 	procedure_capacity = 1024;

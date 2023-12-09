@@ -14,22 +14,19 @@ static Type  get_type(TypeID id)     { return types[get_type_index(id)]; }
 static void update_type(TypeID id, Type type) { types[get_type_index(id)] = type; }
 static u64  get_type_size(TypeID id) { return get_type(id).size; }
 
-static
-u64 get_tuple_type_length(TypeID type) {
+static u64 get_tuple_type_length(TypeID type) {
 	assert(type);
 	assert(get_type_kind(type) == TYPE_KIND_TUPLE);
 	return get_type(type).length;
 }
 
-static
-u64 get_fixed_type_length(TypeID type) {
+static u64 get_fixed_type_length(TypeID type) {
 	assert(type);
 	assert(get_type_kind(type) == TYPE_KIND_FIXED);
 	return get_type(type).length;
 }
 
-static
-void init_type_system(void) {
+static void init_type_system(void) {
 	types      = alloc(1<<24);
 	types_end  = (Type*)(((char*)types) + (1<<24));
 	type_count = LARGEST_CORE_TYPE_INDEX;
@@ -51,8 +48,7 @@ void init_type_system(void) {
 	types[get_type_index(TYPE_EMPTY_TUPLE)] = (Type){ .size = 0, .length = 0 };
 }
 
-static
-TypeID new_type(TypeKind kind) {
+static TypeID new_type(TypeKind kind) {
 	u64 index = type_count;
 	TypeID id = MAKE_TYPEID(kind, index);
 
@@ -66,8 +62,7 @@ TypeID new_type(TypeKind kind) {
 	return id;
 }
 
-static
-void xtable_push(TypeID typeid, TypeExtent ext) {
+static void xtable_push(TypeID typeid, TypeExtent ext) {
 	XTable* table = &get_type_ptr(typeid)->xtable;
 	if (is_pow2(table->length+1)) {
 		table->exts = realloc(
@@ -81,8 +76,7 @@ void xtable_push(TypeID typeid, TypeExtent ext) {
 	table->length++;
 }
 
-static
-TypeID get_ref_type(TypeID subtype) {
+static TypeID get_ref_type(TypeID subtype) {
 	assert(subtype);
 
 	if (get_type(subtype).ptr)
@@ -100,8 +94,7 @@ TypeID get_ref_type(TypeID subtype) {
 	return ntid;
 }
 
-static
-TypeID get_pointer_type(TypeID subtype) {
+static TypeID get_pointer_type(TypeID subtype) {
 	assert(subtype);
 
 	if (get_type(subtype).ptr)
@@ -119,8 +112,7 @@ TypeID get_pointer_type(TypeID subtype) {
 	return ntid;
 }
 
-static
-TypeID get_array_type(TypeID subtype) {
+static TypeID get_array_type(TypeID subtype) {
 	assert(subtype);
 
 	if (get_type(subtype).array)
@@ -140,8 +132,7 @@ TypeID get_array_type(TypeID subtype) {
 
 // If get_function_type or get_tuple_type lookups are too slow we should start using binary search
 
-static
-TypeID get_function_type(TypeID input, TypeID output) {
+static TypeID get_function_type(TypeID input, TypeID output) {
 	assert(input);
 	assert(output);
 
@@ -173,8 +164,7 @@ TypeID get_function_type(TypeID input, TypeID output) {
 	return ntid;
 }
 
-static
-TypeID get_tuple_type(TypeID* types, u64 count) {
+static TypeID get_tuple_type(TypeID* types, u64 count) {
 	if (!count)
 		return TYPE_EMPTY_TUPLE;
 
@@ -224,8 +214,7 @@ TypeID get_tuple_type(TypeID* types, u64 count) {
 	return ntid;
 }
 
-static
-TypeID get_fixed_type(TypeID subtype, u64 length) {
+static TypeID get_fixed_type(TypeID subtype, u64 length) {
 	assert(subtype);
 	assert(length);
 
@@ -260,8 +249,14 @@ TypeID get_fixed_type(TypeID subtype, u64 length) {
 	return ntid;
 }
 
-static
-bool is_int(TypeID type) {
+static TypeID get_subtype(TypeID type) {
+	TypeKind kind = get_type_kind(type);
+	assert(is_specifier(type));
+	Type* p = get_type_ptr(type);
+	return p->subtype;
+}
+
+static bool is_int(TypeID type) {
 	switch (type) {
 		case TYPE_INT8:
 		case TYPE_INT16:
@@ -277,8 +272,7 @@ bool is_int(TypeID type) {
 	}
 }
 
-static
-bool is_unsigned(TypeID type) {
+static bool is_unsigned(TypeID type) {
 	switch (type) {
 		case TYPE_UINT8:
 		case TYPE_UINT16:
@@ -290,8 +284,7 @@ bool is_unsigned(TypeID type) {
 	}
 }
 
-static
-bool is_signed(TypeID type) {
+static bool is_signed(TypeID type) {
 	switch (type) {
 		case TYPE_INT8:
 		case TYPE_INT16:
@@ -303,8 +296,7 @@ bool is_signed(TypeID type) {
 	}
 }
 
-static
-bool is_float(TypeID type) {
+static bool is_float(TypeID type) {
 	switch (type) {
 		case TYPE_FLOAT32:
 		case TYPE_FLOAT64:
@@ -314,8 +306,26 @@ bool is_float(TypeID type) {
 	}
 }
 
-static
-bool is_ref(TypeID type) {
+static bool is_ref(TypeID type) {
 	return get_type_kind(type) == TYPE_KIND_REF;
+}
+
+static bool is_specifier(TypeID type) {
+	switch (type) {
+		default: assert_unreachable();
+
+		case TYPE_KIND_PTR:
+		case TYPE_KIND_REF:
+		case TYPE_KIND_ARRAY:
+		case TYPE_KIND_FIXED:
+			return true;
+
+		case TYPE_KIND_STRUCT:
+		case TYPE_KIND_ENUM:
+		case TYPE_KIND_TUPLE:
+		case TYPE_KIND_FUNCTION:
+		case TYPE_KIND_PRIMITIVE:
+			return false;
+	}
 }
 

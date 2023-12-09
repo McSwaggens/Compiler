@@ -270,7 +270,7 @@ Token* parse_struct(Module* module, Token* token, Indent16 indent) {
 		if (!is_expression_starter(token->kind))
 			errort(token, "Expected type after ':', not: %\n", arg_token(token));
 
-		token = parse_expression(module, token, indent+2, true, &field.type);
+		token = parse_expression(module, token, indent+2, true, &field.type_expr);
 
 		ast->fields = realloc(ast->fields, sizeof(StructField)*(ast->field_count), sizeof(StructField)*(ast->field_count+1));
 		ast->fields[ast->field_count++] = field;
@@ -314,7 +314,7 @@ Token* parse_enum(Module* module, Token* token, Indent16 indent) {
 			errort(token, "Expected type after '->', not: %\n", arg_token(token));
 
 		check_indent(token, indent+1);
-		token = parse_expression(module, token, indent+1, true, &ast->type);
+		token = parse_expression(module, token, indent+1, true, &ast->type_expr);
 	}
 
 	if (token->kind != TOKEN_COLON)
@@ -426,15 +426,15 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 	u8 unaryprec = correct_unary_precedence(unary_precedence(token->kind), token);
 
 	switch (token->kind) {
-		ExpressionKind kind;
+		AstKind kind;
 
-		case TOKEN_IDENTIFIER_CONSTANT: kind = EXPR_IDENTIFIER_CONSTANT; goto GOTO_TERM;
-		case TOKEN_IDENTIFIER_FORMAL:   kind = EXPR_IDENTIFIER_FORMAL;   goto GOTO_TERM;
-		case TOKEN_IDENTIFIER_VARIABLE: kind = EXPR_IDENTIFIER_VARIABLE; goto GOTO_TERM;
+		case TOKEN_IDENTIFIER_CONSTANT: kind = AST_EXPR_IDENTIFIER_CONSTANT; goto GOTO_TERM;
+		case TOKEN_IDENTIFIER_FORMAL:   kind = AST_EXPR_IDENTIFIER_FORMAL;   goto GOTO_TERM;
+		case TOKEN_IDENTIFIER_VARIABLE: kind = AST_EXPR_IDENTIFIER_VARIABLE; goto GOTO_TERM;
 
-		case TOKEN_TRUE:  kind = EXPR_TRUE;  goto GOTO_TERM;
-		case TOKEN_FALSE: kind = EXPR_FALSE; goto GOTO_TERM;
-		case TOKEN_NULL:  kind = EXPR_NULL;  goto GOTO_TERM;
+		case TOKEN_TRUE:  kind = AST_EXPR_TRUE;  goto GOTO_TERM;
+		case TOKEN_FALSE: kind = AST_EXPR_FALSE; goto GOTO_TERM;
+		case TOKEN_NULL:  kind = AST_EXPR_NULL;  goto GOTO_TERM;
 
 		case TOKEN_LITERAL_INT8:
 		case TOKEN_LITERAL_INT16:
@@ -444,19 +444,19 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 		case TOKEN_LITERAL_UINT16:
 		case TOKEN_LITERAL_UINT32:
 		case TOKEN_LITERAL_UINT64:
-			kind = EXPR_LITERAL;
+			kind = AST_EXPR_LITERAL;
 			goto GOTO_TERM;
 
 		case TOKEN_LITERAL_FLOAT32:
 		case TOKEN_LITERAL_FLOAT64:
 		case TOKEN_LITERAL_STRING:
-			kind = EXPR_LITERAL;
+			kind = AST_EXPR_LITERAL;
 			goto GOTO_TERM;
 
 		case TOKEN_BYTE:   case TOKEN_BOOL:   case TOKEN_INT:     case TOKEN_INT8:    case TOKEN_INT16:
 		case TOKEN_INT32:  case TOKEN_INT64:  case TOKEN_UINT:    case TOKEN_UINT8:   case TOKEN_UINT16:
 		case TOKEN_UINT32: case TOKEN_UINT64: case TOKEN_FLOAT32: case TOKEN_FLOAT64: case TOKEN_TYPE_ID:
-			kind = EXPR_BASETYPE_PRIMITIVE;
+			kind = AST_EXPR_BASETYPE_PRIMITIVE;
 			goto GOTO_TERM;
 
 		GOTO_TERM: {
@@ -469,12 +469,12 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 			token++;
 		} break;
 
-		case TOKEN_ASTERISK:    kind = EXPR_UNARY_PTR;     goto GOTO_UNARY;
-		case TOKEN_AT:          kind = EXPR_UNARY_REF;     goto GOTO_UNARY;
-		case TOKEN_EXCLAMATION: kind = EXPR_UNARY_NOT;     goto GOTO_UNARY;
-		case TOKEN_TILDA:       kind = EXPR_UNARY_BIT_NOT; goto GOTO_UNARY;
-		case TOKEN_MINUS:       kind = EXPR_UNARY_INVERSE; goto GOTO_UNARY;
-		case TOKEN_PLUS:        kind = EXPR_UNARY_ABS;     goto GOTO_UNARY;
+		case TOKEN_ASTERISK:    kind = AST_EXPR_UNARY_PTR;     goto GOTO_UNARY;
+		case TOKEN_AT:          kind = AST_EXPR_UNARY_REF;     goto GOTO_UNARY;
+		case TOKEN_EXCLAMATION: kind = AST_EXPR_UNARY_NOT;     goto GOTO_UNARY;
+		case TOKEN_TILDA:       kind = AST_EXPR_UNARY_BIT_NOT; goto GOTO_UNARY;
+		case TOKEN_MINUS:       kind = AST_EXPR_UNARY_INVERSE; goto GOTO_UNARY;
+		case TOKEN_PLUS:        kind = AST_EXPR_UNARY_ABS;     goto GOTO_UNARY;
 		GOTO_UNARY: {
 			left = alloc_expression();
 			*left = (Expression){
@@ -494,7 +494,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 		case TOKEN_OPEN_BRACE: {
 			left = alloc_expression();
 			*left = (Expression){
-				.kind = EXPR_ARRAY,
+				.kind = AST_EXPR_ARRAY,
 			};
 
 			Token* open = token;
@@ -554,7 +554,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 		case TOKEN_OPEN_PAREN: {
 			left = alloc_expression();
 			*left = (Expression){
-				.kind = EXPR_TUPLE,
+				.kind = AST_EXPR_TUPLE,
 			};
 
 			Token* open = token;
@@ -619,7 +619,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 			token++; // [
 
 			if (token->kind == TOKEN_CLOSE_BRACKET) {
-				left->kind = EXPR_SPEC_ARRAY; // []e
+				left->kind = AST_EXPR_SPEC_ARRAY; // []e
 
 				// Take subexpression
 				ih_check(token+1, helper, 0); // e
@@ -634,7 +634,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 
 			Expression* lexpr = null;
 
-			left->kind = EXPR_SPEC_FIXED; // [n]e
+			left->kind = AST_EXPR_SPEC_FIXED; // [n]e
 			ih_check(token, helper, 0); // n
 			token = internal_parse_expression(module, token, allow_equals, 0, helper, &lexpr);
 
@@ -643,7 +643,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 
 
 			if (token->kind == TOKEN_DOT_DOT) {
-				left->kind = EXPR_BINARY_SPAN; // [a..b]
+				left->kind = AST_EXPR_BINARY_SPAN; // [a..b]
 				left->span.left = lexpr;
 				ih_check(token, helper, -1);  // ..
 				ih_check(token+1, helper, 0); // b
@@ -660,7 +660,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 			ih_check(token, helper, 0);
 			token++; // ]
 
-			if (left->kind == EXPR_SPEC_FIXED) {
+			if (left->kind == AST_EXPR_SPEC_FIXED) {
 				// [N]e
 				left->specifier.length = lexpr;
 				ih_check(token, helper, 0); // e
@@ -706,29 +706,29 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 			default:
 				errort(token, "parse_expression didn't handle binary operator %\n", arg_token(token));
 
-			case TOKEN_DOT:              expr->kind = EXPR_BINARY_DOT;              goto GOTO_BINARY_OP;
+			case TOKEN_DOT:              expr->kind = AST_EXPR_BINARY_DOT;              goto GOTO_BINARY_OP;
 
-			case TOKEN_ASTERISK:         expr->kind = EXPR_BINARY_MUL;              goto GOTO_BINARY_OP;
-			case TOKEN_SLASH:            expr->kind = EXPR_BINARY_DIV;              goto GOTO_BINARY_OP;
-			case TOKEN_BACK_SLASH:       expr->kind = EXPR_BINARY_MOD;              goto GOTO_BINARY_OP;
-			case TOKEN_LEFT_SHIFT:       expr->kind = EXPR_BINARY_LSHIFT;           goto GOTO_BINARY_OP;
-			case TOKEN_RIGHT_SHIFT:      expr->kind = EXPR_BINARY_RSHIFT;           goto GOTO_BINARY_OP;
+			case TOKEN_ASTERISK:         expr->kind = AST_EXPR_BINARY_MUL;              goto GOTO_BINARY_OP;
+			case TOKEN_SLASH:            expr->kind = AST_EXPR_BINARY_DIV;              goto GOTO_BINARY_OP;
+			case TOKEN_BACK_SLASH:       expr->kind = AST_EXPR_BINARY_MOD;              goto GOTO_BINARY_OP;
+			case TOKEN_LEFT_SHIFT:       expr->kind = AST_EXPR_BINARY_LSHIFT;           goto GOTO_BINARY_OP;
+			case TOKEN_RIGHT_SHIFT:      expr->kind = AST_EXPR_BINARY_RSHIFT;           goto GOTO_BINARY_OP;
 
-			case TOKEN_PIKE:             expr->kind = EXPR_BINARY_BIT_OR;           goto GOTO_BINARY_OP;
-			case TOKEN_AMPERSAND:        expr->kind = EXPR_BINARY_BIT_AND;          goto GOTO_BINARY_OP;
-			case TOKEN_CARET:            expr->kind = EXPR_BINARY_BIT_XOR;          goto GOTO_BINARY_OP;
-			case TOKEN_PLUS:             expr->kind = EXPR_BINARY_ADD;              goto GOTO_BINARY_OP;
-			case TOKEN_MINUS:            expr->kind = EXPR_BINARY_SUB;              goto GOTO_BINARY_OP;
+			case TOKEN_PIKE:             expr->kind = AST_EXPR_BINARY_BIT_OR;           goto GOTO_BINARY_OP;
+			case TOKEN_AMPERSAND:        expr->kind = AST_EXPR_BINARY_BIT_AND;          goto GOTO_BINARY_OP;
+			case TOKEN_CARET:            expr->kind = AST_EXPR_BINARY_BIT_XOR;          goto GOTO_BINARY_OP;
+			case TOKEN_PLUS:             expr->kind = AST_EXPR_BINARY_ADD;              goto GOTO_BINARY_OP;
+			case TOKEN_MINUS:            expr->kind = AST_EXPR_BINARY_SUB;              goto GOTO_BINARY_OP;
 
-			case TOKEN_EQUAL:            expr->kind = EXPR_BINARY_EQUAL;            goto GOTO_BINARY_OP;
-			case TOKEN_NOT_EQUAL:        expr->kind = EXPR_BINARY_NOT_EQUAL;        goto GOTO_BINARY_OP;
-			case TOKEN_LESS:             expr->kind = EXPR_BINARY_LESS;             goto GOTO_BINARY_OP;
-			case TOKEN_LESS_OR_EQUAL:    expr->kind = EXPR_BINARY_LESS_OR_EQUAL;    goto GOTO_BINARY_OP;
-			case TOKEN_GREATER:          expr->kind = EXPR_BINARY_GREATER;          goto GOTO_BINARY_OP;
-			case TOKEN_GREATER_OR_EQUAL: expr->kind = EXPR_BINARY_GREATER_OR_EQUAL; goto GOTO_BINARY_OP;
+			case TOKEN_EQUAL:            expr->kind = AST_EXPR_BINARY_EQUAL;            goto GOTO_BINARY_OP;
+			case TOKEN_NOT_EQUAL:        expr->kind = AST_EXPR_BINARY_NOT_EQUAL;        goto GOTO_BINARY_OP;
+			case TOKEN_LESS:             expr->kind = AST_EXPR_BINARY_LESS;             goto GOTO_BINARY_OP;
+			case TOKEN_LESS_OR_EQUAL:    expr->kind = AST_EXPR_BINARY_LESS_OR_EQUAL;    goto GOTO_BINARY_OP;
+			case TOKEN_GREATER:          expr->kind = AST_EXPR_BINARY_GREATER;          goto GOTO_BINARY_OP;
+			case TOKEN_GREATER_OR_EQUAL: expr->kind = AST_EXPR_BINARY_GREATER_OR_EQUAL; goto GOTO_BINARY_OP;
 
-			case TOKEN_AND:              expr->kind = EXPR_BINARY_AND;              goto GOTO_BINARY_OP;
-			case TOKEN_OR:               expr->kind = EXPR_BINARY_OR;               goto GOTO_BINARY_OP;
+			case TOKEN_AND:              expr->kind = AST_EXPR_BINARY_AND;              goto GOTO_BINARY_OP;
+			case TOKEN_OR:               expr->kind = AST_EXPR_BINARY_OR;               goto GOTO_BINARY_OP;
 			GOTO_BINARY_OP: {
 				expr->binary.optoken = token;
 				expr->binary.left = left;
@@ -744,7 +744,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 			} break;
 
 			case TOKEN_OPEN_BRACKET: {
-				expr->kind = EXPR_INDEX;
+				expr->kind = AST_EXPR_INDEX;
 				expr->subscript.base = left;
 				// expr->subscript.token = token;
 				token++;
@@ -766,7 +766,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 
 			case TOKEN_OPEN_PAREN: {
 				*expr = (Expression){
-					.kind           = EXPR_CALL,
+					.kind           = AST_EXPR_CALL,
 					.call.function  = left,
 					.call.arg_count = 0,
 					.call.args      = null,
@@ -821,7 +821,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 
 			case TOKEN_IF: {
 				*expr = (Expression){
-					.kind = EXPR_TERNARY_IF_ELSE,
+					.kind = AST_EXPR_TERNARY_IF_ELSE,
 					.ternary.left = left,
 				};
 
@@ -917,7 +917,7 @@ Token* parse_variable_declaration(Module* module, Token* token, Indent16 indent,
 
 static
 Token* parse_if(Module* module, Token* token, Indent16 indent, Branch* branch) {
-	branch->kind = BRANCH_IF;
+	branch->branch_kind = BRANCH_IF;
 	token++;
 
 	if (!is_expression_starter(token->kind)) {
@@ -939,7 +939,7 @@ Token* parse_if(Module* module, Token* token, Indent16 indent, Branch* branch) {
 
 static
 Token* parse_while(Module* module, Token* token, Indent16 indent, Branch* branch) {
-	branch->kind = BRANCH_WHILE;
+	branch->branch_kind = BRANCH_WHILE;
 	token++;
 
 	if (!is_expression_starter(token->kind))
@@ -960,7 +960,7 @@ Token* parse_while(Module* module, Token* token, Indent16 indent, Branch* branch
 
 static
 Token* parse_for(Module* module, Token* token, Indent16 indent, Branch* branch) {
-	branch->kind = BRANCH_FOR;
+	branch->branch_kind = BRANCH_FOR;
 	token++;
 
 	if (token->kind != TOKEN_IDENTIFIER_VARIABLE) {
@@ -1004,7 +1004,7 @@ Token* parse_for(Module* module, Token* token, Indent16 indent, Branch* branch) 
 
 static
 Token* parse_match(Module* module, Token* token, Indent16 indent, Branch* branch) {
-	branch->kind = BRANCH_MATCH;
+	branch->branch_kind = BRANCH_MATCH;
 	token++; // match
 
 	if (!is_expression_starter(token->kind))
@@ -1085,7 +1085,7 @@ Token* parse_branch(Module* module, Token* token, Indent16 indent, Branch* branc
 
 	switch (token->kind) {
 		case TOKEN_COLON: {
-			branch->kind = BRANCH_NAKED;
+			branch->branch_kind = BRANCH_NAKED;
 			token = parse_code(module, token+1, indent+1, &branch->code);
 		} break;
 
@@ -1134,10 +1134,10 @@ Token* parse_controlflow(Module* module, Token* token, Indent16 indent, ControlF
 		branch->belse = belse;
 		branch->bthen = bthen;
 
-		if (branch->clause == CLAUSE_ELSE)
+		if (branch->clause_kind == CLAUSE_ELSE)
 			belse = branch;
 
-		if (branch->clause == CLAUSE_THEN)
+		if (branch->clause_kind == CLAUSE_THEN)
 			bthen = branch;
 	}
 
@@ -1150,7 +1150,7 @@ Token* parse_statement(Module* module, Token* token, Indent16 indent, Code* code
 
 	switch (token->kind) {
 		case TOKEN_RETURN: {
-			statement.kind = STATEMENT_RETURN;
+			statement.kind = AST_STATEMENT_RETURN;
 			token++;
 
 			if (is_expression_starter(token->kind) && is_correct_indent(token, indent+1))
@@ -1158,19 +1158,19 @@ Token* parse_statement(Module* module, Token* token, Indent16 indent, Code* code
 		} break;
 
 		case TOKEN_BREAK:
-			statement.kind = STATEMENT_BREAK;
+			statement.kind = AST_STATEMENT_BREAK;
 			token++;
 			break;
 
 		case TOKEN_CONTINUE:
-			statement.kind = STATEMENT_CONTINUE;
+			statement.kind = AST_STATEMENT_CONTINUE;
 			token++;
 			break;
 
 		case TOKEN_INC:
 		case TOKEN_DEC: {
 			bool is_inc = token->kind == TOKEN_INC;
-			statement.kind = is_inc ? STATEMENT_INC : STATEMENT_DEC;
+			statement.kind = is_inc ? AST_STATEMENT_INC : AST_STATEMENT_DEC;
 
 			if (!is_expression_starter(token[1].kind) || !is_correct_indent(token+1, indent+1))
 				errort(token, is_inc ? "Expected expression after inc\n" : "Expected expression after dec\n");
@@ -1182,7 +1182,7 @@ Token* parse_statement(Module* module, Token* token, Indent16 indent, Code* code
 		case TOKEN_FOR:
 		case TOKEN_WHILE:
 		case TOKEN_MATCH:
-			statement.kind = STATEMENT_CONTROLFLOW;
+			statement.kind = AST_STATEMENT_CONTROLFLOW;
 			token = parse_controlflow(module, token, indent, &statement.controlflow);
 			break;
 
@@ -1190,7 +1190,7 @@ Token* parse_statement(Module* module, Token* token, Indent16 indent, Code* code
 			if (token[1].kind != TOKEN_COLON)
 				goto GOTO_PARSE_EXPRESSION_STATEMENT;
 
-			statement.kind = STATEMENT_VARDECL;
+			statement.kind = AST_STATEMENT_VARDECL;
 			Variable* var = stack_alloc(sizeof(Variable));
 			zero(var, sizeof(Variable));
 			statement.var = var;
@@ -1208,24 +1208,24 @@ Token* parse_statement(Module* module, Token* token, Indent16 indent, Code* code
 
 			switch (token->kind) {
 				default:
-					statement.kind = STATEMENT_EXPRESSION;
+					statement.kind = AST_STATEMENT_EXPRESSION;
 					statement.expr = expr;
 					break;
 
-				case TOKEN_EQUAL:             statement.kind = STATEMENT_ASSIGNMENT;         break;
-				case TOKEN_LEFT_SHIFT_EQUAL:  statement.kind = STATEMENT_ASSIGNMENT_LSH;     break;
-				case TOKEN_RIGHT_SHIFT_EQUAL: statement.kind = STATEMENT_ASSIGNMENT_RSH;     break;
-				case TOKEN_SLASH_EQUAL:       statement.kind = STATEMENT_ASSIGNMENT_DIV;     break;
-				case TOKEN_PERCENT_EQUAL:     statement.kind = STATEMENT_ASSIGNMENT_MOD;     break;
-				case TOKEN_PLUS_EQUAL:        statement.kind = STATEMENT_ASSIGNMENT_ADD;     break;
-				case TOKEN_MINUS_EQUAL:       statement.kind = STATEMENT_ASSIGNMENT_SUB;     break;
-				case TOKEN_ASTERISK_EQUAL:    statement.kind = STATEMENT_ASSIGNMENT_MUL;     break;
-				case TOKEN_AMPERSAND_EQUAL:   statement.kind = STATEMENT_ASSIGNMENT_BIT_AND; break;
-				case TOKEN_CARET_EQUAL:       statement.kind = STATEMENT_ASSIGNMENT_BIT_XOR; break;
-				case TOKEN_PIKE_EQUAL:        statement.kind = STATEMENT_ASSIGNMENT_BIT_OR;  break;
+				case TOKEN_EQUAL:             statement.kind = AST_STATEMENT_ASSIGNMENT;         break;
+				case TOKEN_LEFT_SHIFT_EQUAL:  statement.kind = AST_STATEMENT_ASSIGNMENT_LSH;     break;
+				case TOKEN_RIGHT_SHIFT_EQUAL: statement.kind = AST_STATEMENT_ASSIGNMENT_RSH;     break;
+				case TOKEN_SLASH_EQUAL:       statement.kind = AST_STATEMENT_ASSIGNMENT_DIV;     break;
+				case TOKEN_PERCENT_EQUAL:     statement.kind = AST_STATEMENT_ASSIGNMENT_MOD;     break;
+				case TOKEN_PLUS_EQUAL:        statement.kind = AST_STATEMENT_ASSIGNMENT_ADD;     break;
+				case TOKEN_MINUS_EQUAL:       statement.kind = AST_STATEMENT_ASSIGNMENT_SUB;     break;
+				case TOKEN_ASTERISK_EQUAL:    statement.kind = AST_STATEMENT_ASSIGNMENT_MUL;     break;
+				case TOKEN_AMPERSAND_EQUAL:   statement.kind = AST_STATEMENT_ASSIGNMENT_BIT_AND; break;
+				case TOKEN_CARET_EQUAL:       statement.kind = AST_STATEMENT_ASSIGNMENT_BIT_XOR; break;
+				case TOKEN_PIKE_EQUAL:        statement.kind = AST_STATEMENT_ASSIGNMENT_BIT_OR;  break;
 			}
 
-			if (statement.kind != STATEMENT_EXPRESSION) {
+			if (statement.kind != AST_STATEMENT_EXPRESSION) {
 				statement.assign.left = expr;
 				check_indent(token,   indent+1);
 				check_indent(token+1, indent+1);

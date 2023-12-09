@@ -5,6 +5,7 @@
 
 typedef struct Type Type;
 typedef enum TypeKind TypeKind;
+typedef enum PrimitiveType PrimitiveType;
 typedef u64 TypeID;
 
 enum TypeKind {
@@ -71,6 +72,8 @@ struct Type {
 	TypeID input;
 	TypeID output;
 	TypeID* elements;
+	struct Struct* ustruct;
+	struct Enum* uenum;
 	u64 length; // Length of fixed array and tuple.
 	u64 size;
 	XTable xtable;
@@ -93,10 +96,12 @@ static TypeID get_array_type(TypeID typeid);
 static TypeID get_function_type(TypeID input, TypeID output);
 static TypeID get_tuple_type(TypeID* types, u64 count);
 static TypeID get_fixed_type(TypeID typeid, u64 length);
+static TypeID get_subtype(TypeID type);
 static bool is_int(TypeID type);
 static bool is_unsigned(TypeID type);
 static bool is_signed(TypeID type);
 static bool is_float(TypeID type);
 static bool is_ref(TypeID type);
+static bool is_specifier(TypeID type);
 #endif // TYPE_H
 
