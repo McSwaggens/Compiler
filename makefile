@@ -1,7 +1,22 @@
-compiler: *.c *.h makefile
+compiler = clang
+debug    = -DDEBUG -ggdb -Og
+release  = -O3
+
+args = \
+	-mcmodel=medium\
+	-ffreestanding\
+	# -nostartfiles\
+	# -static\
+	# -nolibc\
+	-fno-builtin-free\
+	-fno-builtin-realloc\
+	-std=c99\
+	-march=znver3 \
+	$(release)
+
+compiler: *.c *.h *.asm makefile
 	nasm -felf64 extra.asm -o assembler_stuff.o
-	# clang compiler.c assembler_stuff.o -fno-builtin-free -fno-builtin-realloc -std=c99 -march=znver3         -O3       -o compiler
-	clang compiler.c assembler_stuff.o -fno-builtin-free -fno-builtin-realloc -std=c99 -march=znver3 -DDEBUG -ggdb -Og -o compiler
+	$(compiler) compiler.c assembler_stuff.o $(args) -o compiler
 	rm assembler_stuff.o
 	# objdump -drwCS --no-addresses --no-show-raw-insn --visualize-jumps -Mintel -Mx86-64 compiler > compiler.asm
 	objdump -drwCS --no-addresses --no-show-raw-insn -Mintel -Mx86-64 compiler > compiler.asm

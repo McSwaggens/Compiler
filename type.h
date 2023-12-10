@@ -6,7 +6,10 @@
 typedef struct Type Type;
 typedef enum TypeKind TypeKind;
 typedef enum PrimitiveType PrimitiveType;
-typedef u64 TypeID;
+typedef u32 TypeID;
+
+#define TYPEID_KIND_BITS 4
+#define TYPEID_INDEX_BITS (sizeof(TypeID)*8 - TYPEID_KIND_BITS)
 
 enum TypeKind {
 	TYPE_KIND_PRIMITIVE = 0,
@@ -39,12 +42,14 @@ enum PrimitiveType {
 	TYPE_FLOAT64  = 13,
 };
 
-#define MAKE_TYPEID(kind, index) (((index)<<4llu) | (kind))
+// Using macro here because it's used in enums.
+#define MAKE_TYPEID(kind, index) ((TypeID)((kind << TYPEID_INDEX_BITS) | index))
 
 enum {
 	TYPE_EMPTY_TUPLE = MAKE_TYPEID(TYPE_KIND_TUPLE, 14),
-	LARGEST_CORE_TYPE_INDEX,
 };
+
+#define LARGEST_CORE_TYPE_INDEX 14
 
 typedef struct TypeExtent {
 	TypeID type;
@@ -79,21 +84,17 @@ struct Type {
 	XTable xtable;
 };
 
-static TypeKind get_type_kind(TypeID id);
-static u64 get_type_index(TypeID id);
-static Type* get_type_ptr(TypeID id); // @Warning: Pointer may be invalidated by NewType function. Use carefully!
-static Type get_type(TypeID id);
-static void update_type(TypeID id, Type type);
-static u64 get_type_size(TypeID id);
-static u64 get_tuple_type_length(TypeID type);
-static u64 get_fixed_type_length(TypeID type);
 static void init_type_system(void);
-static void xtable_push(TypeID typeid, TypeExtent ext);
-static TypeID new_type(TypeKind kind);
-static TypeID get_pointer_type(TypeID typeid);
+static inline TypeKind get_type_kind(TypeID id);
+static inline u32 get_type_index(TypeID id);
+static inline Type* get_type(TypeID id);
+static inline u64 get_type_size(TypeID id);
+static inline u64 get_type_tuple_length(TypeID type);
+static inline u64 get_type_fixed_length(TypeID type);
+static TypeID get_ptr_type(TypeID typeid);
 static TypeID get_ref_type(TypeID subtype);
 static TypeID get_array_type(TypeID typeid);
-static TypeID get_function_type(TypeID input, TypeID output);
+static TypeID get_func_type(TypeID input, TypeID output);
 static TypeID get_tuple_type(TypeID* types, u64 count);
 static TypeID get_fixed_type(TypeID typeid, u64 length);
 static TypeID get_subtype(TypeID type);

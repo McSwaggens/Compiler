@@ -253,12 +253,12 @@ static void write_token(OutputBuffer* buffer, Token* token) {
 }
 
 static void write_type(OutputBuffer* buffer, TypeID type) {
-	Type* info = get_type_ptr(type);
-
 	if (!type) {
 		write_cstring(buffer, "TYPE_NULL");
 		return;
 	}
+
+	Type* info = get_type(type);
 
 	switch (get_type_kind(type)) {
 		case TYPE_KIND_PRIMITIVE: {
