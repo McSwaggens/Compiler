@@ -371,9 +371,9 @@ union Ast {
 	EnumField   uenum_field;
 };
 
-static Module* find_module(Token* token);
+static Module*   find_module(Token* token);
 static TokenAux* get_aux(Module* module, Token* token);
-static Position get_pos(Module* module, Token* token);
+static Position  get_pos(Module* module, Token* token);
 
 #endif // AST_H
 

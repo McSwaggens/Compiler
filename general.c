@@ -32,6 +32,12 @@ static u64 get_system_ram(void) {
 
 // ------------------------------------ //
 
+static u64 hash64(u64 n) {
+	return n * 21;
+}
+
+// ------------------------------------ //
+
 // void __stack_chk_fail(void) {
 // }
 

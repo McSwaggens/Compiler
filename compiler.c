@@ -82,9 +82,6 @@ int main(int argc, char* argv[]) {
 	Module* module = make_module(tostr("test.q"));
 	lex(module);
 	parse_module(module);
-	scan_module(module);
-	preconvert_module(module);
-	convert_module(module);
 	print("Compiler finished.\n");
 	flush_output_buffer(&standard_output_buffer);
 	return 0;

@@ -136,8 +136,8 @@ struct Token {
 
 	union {
 		s64 i;
-		float32 f32;
-		float64 f64;
+		f32 f;
+		f64 d;
 		String string;
 		String identifier;
 		struct {

@@ -14,7 +14,7 @@ static inline s8  min_s8(s8 a, s8 b)    { return a <= b ? a : b; }
 static inline u64 max_u64(u64 a, u64 b) { return a >= b ? a : b; }
 static inline u32 max_u32(u32 a, u32 b) { return a >= b ? a : b; }
 static inline u16 max_u16(u16 a, u16 b) { return a >= b ? a : b; }
-static inline u8  max_u8(u8 a,   u8 b)    { return a >= b ? a : b; }
+static inline u8  max_u8(u8 a, u8 b)    { return a >= b ? a : b; }
 
 static inline u64 min_u64(u64 a, u64 b) { return a <= b ? a : b; }
 static inline u32 min_u32(u32 a, u32 b) { return a <= b ? a : b; }
@@ -22,10 +22,10 @@ static inline u16 min_u16(u16 a, u16 b) { return a <= b ? a : b; }
 static inline u8  min_u8(u8 a, u8 b)    { return a <= b ? a : b; }
 
 // ------------------------------------ //
-static const float64 MATH_E = 2.71828182845904523542816810799394;
+static const f64 MATH_E = 2.71828182845904523542816810799394;
 
-static float32 floor_f32(float32 f) {
-	union { float32 f; u32 i; } u = { .f = f };
+static f32 floor_f32(f32 f) {
+	union { f32 f; u32 i; } u = { .f = f };
 	u32 exponent = (u.i>>23u)&255u;
 	s32 fractbits = 127 - exponent + 23;
 	if (fractbits > 23) return 0.0;
@@ -33,8 +33,8 @@ static float32 floor_f32(float32 f) {
 	return u.f;
 }
 
-static float64 floor_f64(float64 f) {
-	union { float64 f; u64 i; } u = { .f = f };
+static f64 floor_f64(f64 f) {
+	union { f64 f; u64 i; } u = { .f = f };
 	u64 exponent = (u.i>>52ll)&2047ull;
 	s64 fractbits = 1023ll - exponent + 52ll;
 	if (fractbits > 52ll) return 0.0;
@@ -42,35 +42,35 @@ static float64 floor_f64(float64 f) {
 	return u.f;
 }
 
-static inline s64 get_exponent_f32(float32 f) { return (*(u32*)&f >> 23) & 255; }
-static inline s64 get_exponent_f64(float64 f) { return (*(u64*)&f >> 52llu) & 2047llu; }
+static inline s64 get_exponent_f32(f32 f) { return (*(u32*)&f >> 23) & 255; }
+static inline s64 get_exponent_f64(f64 f) { return (*(u64*)&f >> 52llu) & 2047llu; }
 
-static float32 left_shift_f32(float32 f, s64 n) {
-	union { u32 i; float32 f; } u = { .f = f };
+static f32 left_shift_f32(f32 f, s64 n) {
+	union { u32 i; f32 f; } u = { .f = f };
 	u.i += n << 23;
 	return u.f;
 }
 
-static float32 right_shift_f32(float32 f, s64 n) {
-	union { u32 i; float32 f; } u = { .f = f };
+static f32 right_shift_f32(f32 f, s64 n) {
+	union { u32 i; f32 f; } u = { .f = f };
 	u.i -= n << 23;
 	return u.f;
 }
 
-static float64 left_shift_f64(float64 f, s64 n) {
-	union { u64 i; float64 f; } u = { .f = f };
+static f64 left_shift_f64(f64 f, s64 n) {
+	union { u64 i; f64 f; } u = { .f = f };
 	u.i += n << 52llu;
 	return u.f;
 }
 
-static float64 right_shift_f64(float64 f, s64 n) {
-	union { u64 i; float64 f; } u = { .f = f };
+static f64 right_shift_f64(f64 f, s64 n) {
+	union { u64 i; f64 f; } u = { .f = f };
 	u.i -= n << 52llu;
 	return u.f;
 }
 
-static float64 get_fractional_part64(float64 f) { return f-floor_f64(f); }
-static float32 get_fractional_part32(float32 f) { return f-floor_f32(f); }
+static f64 get_fractional_part64(f64 f) { return f-floor_f64(f); }
+static f32 get_fractional_part32(f32 f) { return f-floor_f32(f); }
 
 static inline u64 pow10u(s64 n) {
 	static const u64 lut[20] = {

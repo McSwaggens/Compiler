@@ -157,10 +157,10 @@ s64 decode_int(LiteralComponent whole, Base base) {
 }
 
 static
-float64 decode_float(LiteralComponent whole, LiteralComponent fract, Base base) {
-	float64 val = 0.0;
-	float64 mul;
-	float64 d;
+f64 decode_float(LiteralComponent whole, LiteralComponent fract, Base base) {
+	f64 val = 0.0;
+	f64 mul;
+	f64 d;
 
 	switch (base) {
 		default: assert_unreachable();
@@ -483,16 +483,16 @@ void parse_literal(Lexer* lexer) {
 		bits = 64;
 
 	if (format == LITERAL_FORMAT_FLOAT) {
-		float64 value = decode_float(whole, fract, base);
+		f64 value = decode_float(whole, fract, base);
 		value *= 1llu << qualifier.scalar; // Not correct? Manually shift the bits in the mantissa?
 
 		if (bits == 32) {
 			token->kind = TOKEN_LITERAL_FLOAT32;
-			token->f32 = (float32)value;
+			token->f = (f32)value;
 		}
 		else if (bits == 64) {
 			token->kind = TOKEN_LITERAL_FLOAT64;
-			token->f64 = (float64)value;
+			token->d = (f64)value;
 		}
 		else assert_unreachable();
 	}
@@ -861,7 +861,7 @@ void lex(Module* module) {
 				if (test_keyword(&lexer, "for",     TOKEN_FOR))     break;
 				if (test_keyword(&lexer, "false",   TOKEN_FALSE))   break;
 				if (test_keyword(&lexer, "float32", TOKEN_FLOAT32)) break;
-				if (test_keyword(&lexer, "float64", TOKEN_FLOAT64)) break;
+				if (test_keyword(&lexer, "f64", TOKEN_FLOAT64)) break;
 				goto GOTO_LEXER_COULD_BE_HEXADECIMAL_OR_IDENTIFIER;
 			}
 

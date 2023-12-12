@@ -22,8 +22,8 @@ typedef enum FormatArgumentKind {
 	PRINT_ARG_UINT16,
 	PRINT_ARG_UINT32,
 	PRINT_ARG_UINT64,
-	PRINT_ARG_FLOAT32,
-	PRINT_ARG_FLOAT64,
+	PRINT_ARG_F32,
+	PRINT_ARG_F64,
 	PRINT_ARG_CHAR,
 	PRINT_ARG_STRING,
 	PRINT_ARG_CSTRING,
@@ -33,7 +33,6 @@ typedef enum FormatArgumentKind {
 	PRINT_ARG_STATEMENT,
 	PRINT_ARG_AST,
 	PRINT_ARG_AST_KIND,
-	PRINT_ARG_VALUE,
 	PRINT_ARG_TYPE,
 } FormatArgumentKind;
 
@@ -53,8 +52,8 @@ typedef struct FormatArg {
 		u32 u32;
 		u64 u64;
 
-		float32 f32;
-		float32 f64;
+		f32 f;
+		f64 d;
 
 		char c;
 		char* s;
@@ -66,7 +65,6 @@ typedef struct FormatArg {
 		AstKind ast_kind;
 		Expression* expr;
 		Statement* statement;
-		Value value;
 		TypeID type;
 	};
 } FormatArg;
@@ -81,8 +79,8 @@ static FormatArg arg_u8(u8 v)                     { return (FormatArg){ PRINT_AR
 static FormatArg arg_u16(u16 v)                   { return (FormatArg){ PRINT_ARG_UINT16,     .u16        = v }; }
 static FormatArg arg_u32(u32 v)                   { return (FormatArg){ PRINT_ARG_UINT32,     .u32        = v }; }
 static FormatArg arg_u64(u64 v)                   { return (FormatArg){ PRINT_ARG_UINT64,     .u64        = v }; }
-static FormatArg arg_f32(float32 v)               { return (FormatArg){ PRINT_ARG_FLOAT32,    .f32        = v }; }
-static FormatArg arg_f64(float64 v)               { return (FormatArg){ PRINT_ARG_FLOAT64,    .f64        = v }; }
+static FormatArg arg_f32(f32 v)                   { return (FormatArg){ PRINT_ARG_F32,        .f          = v }; }
+static FormatArg arg_f64(f64 v)                   { return (FormatArg){ PRINT_ARG_F64,        .d          = v }; }
 static FormatArg arg_char(char c)                 { return (FormatArg){ PRINT_ARG_CHAR,       .c          = c }; }
 static FormatArg arg_string(String s)             { return (FormatArg){ PRINT_ARG_STRING,     .str        = s }; }
 static FormatArg arg_cstring(char* s)             { return (FormatArg){ PRINT_ARG_CSTRING,    .s          = s }; }
@@ -92,7 +90,6 @@ static FormatArg arg_ast_kind(AstKind kind)       { return (FormatArg){ PRINT_AR
 static FormatArg arg_ast(Ast* ast)                { return (FormatArg){ PRINT_ARG_AST,        .ast        = ast }; }
 static FormatArg arg_statement(Statement* stmt)   { return (FormatArg){ PRINT_ARG_STATEMENT,  .statement  = stmt }; }
 static FormatArg arg_expression(Expression* expr) { return (FormatArg){ PRINT_ARG_EXPRESSION, .expr       = expr }; }
-static FormatArg arg_value(Value value)           { return (FormatArg){ PRINT_ARG_VALUE,      .value      = value }; }
 static FormatArg arg_type(TypeID type)            { return (FormatArg){ PRINT_ARG_TYPE,       .type       = type }; }
 
 #endif // PRINT_H

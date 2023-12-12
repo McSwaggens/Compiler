@@ -52,13 +52,13 @@ enum { false = 0, true = 1 };
 
 // ------------------------------------ //
 
-typedef float  float32;
-typedef double float64;
+typedef float  f32;
+typedef double f64;
 
-static const float32 FLOAT32_INFINITY = __builtin_inff();
-static const float32 FLOAT64_INFINITY = __builtin_inf();
-static inline bool is_nan_f32(float32 f) { return *(u32*)&f > 0x7F800000; }
-static inline bool is_nan_f64(float64 f) { return *(u64*)&f > 0x7F80000000000000; } // @Warning: Test me
+static const f32 FLOAT32_INFINITY = __builtin_inff();
+static const f32 FLOAT64_INFINITY = __builtin_inf();
+static inline bool is_nan_f32(f32 f) { return *(u32*)&f > 0x7F800000; }
+static inline bool is_nan_f64(f64 f) { return *(u64*)&f > 0x7F80000000000000; } // @Warning: Test me
 
 // ------------------------------------ //
 
@@ -144,6 +144,10 @@ static void init_page_cache(void);
 
 static inline u64 start_timer(void) { return read_timestamp_counter(); }
 static inline u64 end_timer(u64 timer) { return read_timestamp_counter() - timer; }
+
+// ------------------------------------ //
+
+static u64 hash64(u64 n);
 
 // ------------------------------------ //
 

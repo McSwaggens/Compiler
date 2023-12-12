@@ -23,14 +23,14 @@ static void write_s64(OutputBuffer* buffer, s64 n) {
 	write_u64(buffer, (u64)n);
 }
 
-static float64 get_lowest_digit_f64(float64 f, float64 base) {
-	float64 result = f / base;
+static f64 get_lowest_digit_f64(f64 f, f64 base) {
+	f64 result = f / base;
 	result -= floor_f64(result);
 	result *= base;
 	return result;
 }
 
-static void write_f64(OutputBuffer* buffer, float64 f) {
+static void write_f64(OutputBuffer* buffer, f64 f) {
 	if (is_nan_f64(f)) {
 		write_output_buffer(buffer, "NaN", 3);
 		return;
@@ -48,13 +48,13 @@ static void write_f64(OutputBuffer* buffer, float64 f) {
 
 	char tmp[64];
 
-	float64 fu = floor_f64(f);
-	float64 fl = f-fu;
+	f64 fu = floor_f64(f);
+	f64 fl = f-fu;
 
 	s64 i = 0;
 	do {
 		// @Bug: 1536 gets printed as 1535
-		float64 digit = get_lowest_digit_f64(fu, 10.0);
+		f64 digit = get_lowest_digit_f64(fu, 10.0);
 		fu /= 10;
 		tmp[64-1-(i++)] = '0' + (u8)digit;
 	} while (floor_f64(fu) && i < 64);
@@ -70,7 +70,7 @@ static void write_f64(OutputBuffer* buffer, float64 f) {
 
 	do {
 		fl *= 10;
-		float64 digit = floor_f64(fl);
+		f64 digit = floor_f64(fl);
 		tmp[i++] = '0' + (u8)digit;
 		fl -= digit;
 	} while (i < 16 && fl >= 0.01);
@@ -78,8 +78,8 @@ static void write_f64(OutputBuffer* buffer, float64 f) {
 	write_output_buffer(buffer, tmp, i);
 }
 
-static void write_f32(OutputBuffer* buffer, float32 f) {
-	write_f64(buffer, (float64)f);
+static void write_f32(OutputBuffer* buffer, f32 f) {
+	write_f64(buffer, (f64)f);
 }
 
 static void write_string(OutputBuffer* buffer, String string) {
@@ -143,8 +143,8 @@ static void write_token_kind(OutputBuffer* buffer, TokenKind kind) {
 		case TOKEN_UINT16:              str = "uint16";   break;
 		case TOKEN_UINT32:              str = "uint32";   break;
 		case TOKEN_UINT64:              str = "uint64";   break;
-		case TOKEN_FLOAT32:             str = "float32";  break;
-		case TOKEN_FLOAT64:             str = "float64";  break;
+		case TOKEN_FLOAT32:             str = "f32";  break;
+		case TOKEN_FLOAT64:             str = "f64";  break;
 		case TOKEN_TYPE_ID:             str = "type_id";  break;
 
 		case TOKEN_STRUCT:              str = "struct";   break;
@@ -233,11 +233,11 @@ static void write_token(OutputBuffer* buffer, Token* token) {
 			return;
 
 		case TOKEN_LITERAL_FLOAT32:
-			write_f32(buffer, token->f32);
+			write_f32(buffer, token->f);
 			return;
 
 		case TOKEN_LITERAL_FLOAT64:
-			write_f64(buffer, token->f64);
+			write_f64(buffer, token->d);
 			return;
 
 		case TOKEN_LITERAL_STRING:
@@ -277,8 +277,8 @@ static void write_type(OutputBuffer* buffer, TypeID type) {
 				case TYPE_UINT32:  write_cstring(buffer, "uint32");  break;
 				case TYPE_UINT64:  write_cstring(buffer, "uint64");  break;
 
-				case TYPE_FLOAT32: write_cstring(buffer, "float32"); break;
-				case TYPE_FLOAT64: write_cstring(buffer, "float64"); break;
+				case TYPE_FLOAT32: write_cstring(buffer, "f32"); break;
+				case TYPE_FLOAT64: write_cstring(buffer, "f64"); break;
 			}
 		} return;
 
@@ -679,18 +679,6 @@ static void write_statement(OutputBuffer* buffer, Statement* statement) {
 	}
 }
 
-static void write_value(OutputBuffer* buffer, Value value) {
-	switch (value.kind) {
-		case VALUE_NONE:        printbuff(buffer, "VALUE_NONE"); return;
-		case VALUE_BLOCK:       printbuff(buffer, "block%", arg_u32(value.block->id)); return;
-		case VALUE_PROCEDURE:   printbuff(buffer, "proc_%", arg_string(value.procedure->name)); return;
-		case VALUE_INSTRUCTION: printbuff(buffer, "\\%%",   arg_u32(value.instruction->id)); return;
-		case VALUE_INT:         printbuff(buffer, "int %",  arg_s64(value.i));   return;
-		case VALUE_F32:         printbuff(buffer, "f32 %",  arg_f32(value.f32)); return;
-		case VALUE_F64:         printbuff(buffer, "f64 %",  arg_f64(value.f64)); return;
-	}
-}
-
 static void write_ast(OutputBuffer* buffer, Ast* ast) {
 	if (!ast) {
 		write_cstring(buffer, "null");
@@ -818,8 +806,8 @@ static void print_argument(OutputBuffer* buffer, FormatArg arg) {
 		case PRINT_ARG_UINT32:          write_u64(buffer, arg.u32); return;
 		case PRINT_ARG_UINT64:          write_u64(buffer, arg.u64); return;
 
-		case PRINT_ARG_FLOAT32:         write_f32(buffer, arg.f32); return;
-		case PRINT_ARG_FLOAT64:         write_f64(buffer, arg.f64); return;
+		case PRINT_ARG_F32:             write_f32(buffer, arg.f); return;
+		case PRINT_ARG_F64:             write_f64(buffer, arg.d); return;
 		case PRINT_ARG_CHAR:            write_char(buffer, arg.c);  return;
 		case PRINT_ARG_STRING:          write_string(buffer, arg.str); return;
 		case PRINT_ARG_CSTRING:         write_cstring(buffer, arg.s);  return;
@@ -831,7 +819,6 @@ static void print_argument(OutputBuffer* buffer, FormatArg arg) {
 		case PRINT_ARG_AST:             write_ast(buffer, arg.ast); return;
 		case PRINT_ARG_EXPRESSION:      write_expression(buffer, arg.expr); return;
 		case PRINT_ARG_STATEMENT:       write_statement(buffer, arg.statement); return;
-		case PRINT_ARG_VALUE:           write_value(buffer, arg.value); return;
 		case PRINT_ARG_TYPE:            write_type(buffer, arg.type); return;
 	}
 }
