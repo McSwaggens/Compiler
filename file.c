@@ -12,6 +12,7 @@ static FileHandle32 open_file(String path, FileMode mode, FileAccessFlags access
 
 	switch (mode) {
 		case FILE_MODE_OPEN:                                                                  break;
+		case FILE_MODE_DIRECTORY:          flags |= LINUX_OPEN_DIRECTORY;                     break;
 		case FILE_MODE_APPEND:             flags |= LINUX_OPEN_APPEND;                        break;
 		case FILE_MODE_TRUNCATE:           flags |= LINUX_OPEN_TRUNCATE;                      break;
 		case FILE_MODE_CREATE:             flags |= LINUX_OPEN_CREATE | LINUX_OPEN_EXCLUSIVE; break;
@@ -61,6 +62,8 @@ static s64 query_file_size(FileHandle32 handle) {
 		s64 padding1[3];
 	} status;
 
+	// print("sizeof(Status) = %\n", arg_u64(sizeof(struct Status)));
+
 	system_call(LINUX_SYSCALL_FSTATUS, handle, (s64)&status, 0, 0, 0, 0);
 	return status.size;
 }
@@ -91,6 +94,102 @@ static bool does_file_exist(String path) {
 	// F=0, X=1, W=2, R=4
 	return system_call(LINUX_SYSCALL_ACCESS, (s64)cpath, path.length, 0, 0, 0, 0);
 }
+
+// ------------------------------------ //
+
+typedef struct Linux_DirectoryEntry64 {
+	u64  inode;
+	s64  offset;
+	u16  length;
+	u8   type;
+	char name[];
+} Linux_DirectoryEntry64;
+
+void experiment_virtual_pages(void) {
+	u64* a = (u64*)system_call(LINUX_SYSCALL_MMAP, 0, 4096, 3, 0x21, -1, 0);
+	*a = 1;
+	print("*a = %, address = %\n", arg_u64(*a), arg_u64((u64)a));
+
+	u64* b = (u64*)system_call(LINUX_SYSCALL_MMAP, 0, 4096, 3, 0x21, -1, 0);
+	*b = 2;
+	print("*b = %, address = %\n", arg_u64(*b), arg_u64((u64)b));
+
+	u64* c = (u64*)system_call(LINUX_SYSCALL_MREMAP, (u64)b, 4096, 4096, 1|2|4, (u64)a, 0);
+
+	print("*a = %, address = %\n", arg_u64(*a), arg_u64((u64)a));
+	print("*b = %, address = %\n", arg_u64(*b), arg_u64((u64)b));
+
+	*b = 3;
+	print("*a = %, address = %\n", arg_u64(*a), arg_u64((u64)a));
+	print("*b = %, address = %\n", arg_u64(*b), arg_u64((u64)b));
+}
+
+static void list_dir(char* dir) {
+	u64 dirlen = count_cstring(dir);
+
+	if (!dirlen) {
+		dir = "./";
+		dirlen = 2;
+	}
+
+	FileHandle32 dir_handle = open_file(tostr(dir), FILE_MODE_DIRECTORY, FILE_ACCESS_FLAG_READ);
+
+	if (dir_handle == -1) {
+		print("Invalid directory file handle.\n");
+		return;
+	}
+
+	#define BUFFER_SIZE 8192
+	char buffer[BUFFER_SIZE] = { 0 };
+	char* p;
+
+	u64 loc = 0;
+	while (true) {
+		p = buffer;
+		s64 read = system_call(LINUX_SYSCALL_GETDENTS64, dir_handle, (u64)buffer, BUFFER_SIZE, 0, 0, 0);
+		if (!read) break;
+
+		if (read == -1) {
+			print("Error reading dirs\n");
+			return;
+		}
+
+		print("read = %\n", arg_s64(read));
+
+		while (p < buffer+read) {
+			Linux_DirectoryEntry64* entry = (Linux_DirectoryEntry64*)p;
+
+			u64 name_len = count_cstring(entry->name);
+			if (name_len >= 3 && compare(entry->name+name_len-2, ".c", 2)) {
+				print("name = %, type = %, length = %, inode = %, offset = %\n",
+					arg_cstring(entry->name),
+					arg_u8(entry->type),
+					arg_u16(entry->length),
+					arg_u64(entry->inode),
+					arg_s64(entry->offset)
+				);
+
+				char path[dirlen+name_len+2];
+				char* g = path;
+				copy(g, dir, dirlen);
+				g += dirlen;
+
+				if (g[-1] != '/') {
+					*g = '/';
+					g += 1;
+				}
+
+				copy(g, entry->name, name_len);
+				g += name_len;
+				*g = 0;
+			}
+
+			p += entry->length;
+		}
+	}
+}
+
+// ------------------------------------ //
 
 static void flush_output_buffer(OutputBuffer* buffer) {
 	if (!buffer->head)

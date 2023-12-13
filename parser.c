@@ -2,18 +2,15 @@
 #include "print.h"
 #include "alloc.h"
 
-static
-bool is_correct_indent(Token* token, Indent16 indent) {
+static bool is_correct_indent(Token* token, Indent16 indent) {
 	return !is_newline(token) || token->indent == indent;
 }
 
-static inline
-Expression* alloc_expression(void) {
+static inline Expression* alloc_expression(void) {
 	return stack_alloc(sizeof(Expression));
 }
 
-static
-void scope_push_var(Scope* scope, Variable* var) {
+static void scope_push_var(Scope* scope, Variable* var) {
 	if (scope->variable_count == scope->variable_capacity) {
 		scope->variable_capacity = next_pow2(scope->variable_capacity+7);
 		scope->variables = realloc(
@@ -26,8 +23,7 @@ void scope_push_var(Scope* scope, Variable* var) {
 	scope->variables[scope->variable_count++] = var;
 }
 
-static
-void push_statement(Code* code, Statement statement) {
+static void push_statement(Code* code, Statement statement) {
 	if (code->statement_count == code->statement_capacity) {
 		code->statement_capacity = next_pow2(code->statement_capacity+15);
 		code->statements = realloc(
@@ -41,8 +37,7 @@ void push_statement(Code* code, Statement statement) {
 }
 
 // @Note: Don't use 15, it's reserved for parsing a single expression.
-static
-u8 unary_precedence(TokenKind kind) {
+static u8 unary_precedence(TokenKind kind) {
 	switch (kind) {
 		case TOKEN_PLUS:
 		case TOKEN_MINUS:
@@ -58,8 +53,7 @@ u8 unary_precedence(TokenKind kind) {
 	}
 }
 
-static
-u8 postfix_precedence(TokenKind kind) {
+static u8 postfix_precedence(TokenKind kind) {
 	switch (kind) {
 		case TOKEN_OPEN_BRACKET:
 		case TOKEN_OPEN_PAREN:       return 14;
@@ -67,8 +61,7 @@ u8 postfix_precedence(TokenKind kind) {
 	}
 }
 
-static
-u8 binary_precedence(TokenKind kind) {
+static u8 binary_precedence(TokenKind kind) {
 	switch (kind) {
 		case TOKEN_DOT:              return 14;
 
@@ -100,16 +93,14 @@ u8 binary_precedence(TokenKind kind) {
 	}
 }
 
-static
-u8 ternary_precedence(TokenKind kind) {
+static u8 ternary_precedence(TokenKind kind) {
 	switch (kind) {
 		case TOKEN_IF:               return 3;
 		default:                     return 0;
 	}
 }
 
-static
-bool is_term(TokenKind kind) {
+static bool is_term(TokenKind kind) {
 	switch (kind) {
 		case TOKEN_IDENTIFIER_CONSTANT:
 		case TOKEN_IDENTIFIER_FORMAL:
@@ -152,8 +143,7 @@ bool is_term(TokenKind kind) {
 	}
 }
 
-static
-bool is_scope_terminator(TokenKind kind) {
+static bool is_scope_terminator(TokenKind kind) {
 	switch (kind) {
 		case TOKEN_SEMICOLON:
 		case TOKEN_ELSE:
@@ -164,13 +154,11 @@ bool is_scope_terminator(TokenKind kind) {
 	}
 }
 
-static
-bool is_expression_starter(TokenKind kind) {
+static bool is_expression_starter(TokenKind kind) {
 	return unary_precedence(kind) || is_term(kind);
 }
 
-static
-bool is_branch(TokenKind kind) {
+static bool is_branch(TokenKind kind) {
 	switch (kind) {
 		case TOKEN_IF:
 		case TOKEN_WHILE:
@@ -182,8 +170,7 @@ bool is_branch(TokenKind kind) {
 	}
 }
 
-static
-bool is_identifier(TokenKind kind) {
+static bool is_identifier(TokenKind kind) {
 	switch (kind) {
 		case TOKEN_IDENTIFIER_CONSTANT:
 		case TOKEN_IDENTIFIER_FORMAL:
@@ -194,8 +181,7 @@ bool is_identifier(TokenKind kind) {
 	}
 }
 
-static
-void check_indent(Token* token, Indent16 indent) {
+static void check_indent(Token* token, Indent16 indent) {
 	if (token->kind == TOKEN_EOF)
 		return;
 
@@ -208,16 +194,14 @@ void check_indent(Token* token, Indent16 indent) {
 	}
 }
 
-static
-u8 correct_unary_precedence(u8 precedence, Token* token) {
+static u8 correct_unary_precedence(u8 precedence, Token* token) {
 	if (!is_rspace(token))
 		precedence <<= 4;
 
 	return precedence;
 }
 
-static
-u8 correct_binary_precedence(u8 precedence, Token* token) {
+static u8 correct_binary_precedence(u8 precedence, Token* token) {
 	if (!is_lspace(token) && !is_rspace(token))
 		precedence <<= 4;
 
@@ -225,14 +209,13 @@ u8 correct_binary_precedence(u8 precedence, Token* token) {
 }
 
 static Token* parse_code(Module* module, Token* token, Indent16 indent, Code* code);
-static Token* parse_expression(Module* module, Token* token, Indent16 indent, bool allow_equals, Expression** out);
+static Token* parse_expression(Module* module, Token* token, Indent16 indent, bool allow_equals, Expression** out); 
 
-static
-Token* parse_struct(Module* module, Token* token, Indent16 indent) {
+static Token* parse_struct(Module* module, Token* token, Indent16 indent) {
 	assert(token->kind == TOKEN_STRUCT);
 
 	Struct* ast = &module->structs[module->struct_count++];
-	*ast = (Struct){ 0 };
+	*ast = (Struct){ .kind = AST_STRUCT };
 
 	token++;
 
@@ -251,7 +234,7 @@ Token* parse_struct(Module* module, Token* token, Indent16 indent) {
 	token++;
 
 	while (is_correct_indent(token, indent+1)) {
-		StructField field = { 0 };
+		StructField field = { .kind = AST_STRUCT_MEMBER };
 
 		if (token->kind == TOKEN_IDENTIFIER_CONSTANT || token->kind == TOKEN_IDENTIFIER_FORMAL)
 			errort(token, "Struct field with constant name\n");
@@ -290,12 +273,11 @@ Token* parse_struct(Module* module, Token* token, Indent16 indent) {
 	return token;
 }
 
-static
-Token* parse_enum(Module* module, Token* token, Indent16 indent) {
+static Token* parse_enum(Module* module, Token* token, Indent16 indent) {
 	assert(token->kind == TOKEN_ENUM);
 
 	Enum* ast = &module->enums[module->enum_count++];
-	*ast = (Enum){ 0 };
+	*ast = (Enum){ .kind = AST_ENUM };
 
 	token++;
 
@@ -323,7 +305,7 @@ Token* parse_enum(Module* module, Token* token, Indent16 indent) {
 	token++;
 
 	while (is_correct_indent(token, indent+1)) {
-		EnumField field = { 0 };
+		EnumField field = { .kind = AST_ENUM_MEMBER };
 
 		if (token->kind == TOKEN_IDENTIFIER_VARIABLE)
 			errort(token, "Enum field with variable name is not allowed: %\n", arg_token(token));
@@ -370,18 +352,15 @@ typedef struct IndentHelper {
 	s8 adjustment;
 } IndentHelper;
 
-static inline
-void ih_enter(IndentHelper* helper) {
+static inline void ih_enter(IndentHelper* helper) {
 	helper->bracket_level++;
 }
 
-static inline
-void ih_leave(IndentHelper* helper) {
+static inline void ih_leave(IndentHelper* helper) {
 	helper->bracket_level--;
 }
 
-static
-void ih_check(Token* token, IndentHelper* helper, s32 adjustment) {
+static void ih_check(Token* token, IndentHelper* helper, s32 adjustment) {
 	if (token->kind == TOKEN_EOF)
 		return;
 
@@ -404,8 +383,7 @@ void ih_check(Token* token, IndentHelper* helper, s32 adjustment) {
 	errort(token, "Invalid indent\n");
 }
 
-static
-bool ih_test(Token* token, IndentHelper* helper, s32 adjustment) {
+static bool ih_test(Token* token, IndentHelper* helper, s32 adjustment) {
 	if (token->kind == TOKEN_EOF)
 		return false;
 
@@ -417,8 +395,7 @@ bool ih_test(Token* token, IndentHelper* helper, s32 adjustment) {
 	return token->indent == expected_indent || token->indent == expected_indent-1;
 }
 
-static
-Token* internal_parse_expression(Module* module, Token* token, bool allow_equals, u8 parent_precedence, IndentHelper* helper, Expression** out) {
+static Token* internal_parse_expression(Module* module, Token* token, bool allow_equals, u8 parent_precedence, IndentHelper* helper, Expression** out) {
 	// Make sure to call ih_check before internal_parse_expression
 	Expression* left = null;
 	Token* begin = token;
@@ -851,8 +828,7 @@ Token* internal_parse_expression(Module* module, Token* token, bool allow_equals
 	return token;
 }
 
-static
-Token* parse_expression(Module* module, Token* token, Indent16 indent, bool allow_equals, Expression** out) {
+static Token* parse_expression(Module* module, Token* token, Indent16 indent, bool allow_equals, Expression** out) {
 	// if (token->kind == TOKEN_EOF)
 	// 	return token;
 
@@ -871,8 +847,7 @@ Token* parse_expression(Module* module, Token* token, Indent16 indent, bool allo
 	return token;
 }
 
-static
-Token* parse_variable_declaration(Module* module, Token* token, Indent16 indent, Variable* out) {
+static Token* parse_variable_declaration(Module* module, Token* token, Indent16 indent, Variable* out) {
 	assert(is_identifier(token->kind));
 
 	switch (token->kind) {
@@ -915,8 +890,7 @@ Token* parse_variable_declaration(Module* module, Token* token, Indent16 indent,
 	return token;
 }
 
-static
-Token* parse_if(Module* module, Token* token, Indent16 indent, Branch* branch) {
+static Token* parse_if(Module* module, Token* token, Indent16 indent, Branch* branch) {
 	branch->branch_kind = BRANCH_IF;
 	token++;
 
@@ -937,8 +911,7 @@ Token* parse_if(Module* module, Token* token, Indent16 indent, Branch* branch) {
 	return token;
 }
 
-static
-Token* parse_while(Module* module, Token* token, Indent16 indent, Branch* branch) {
+static Token* parse_while(Module* module, Token* token, Indent16 indent, Branch* branch) {
 	branch->branch_kind = BRANCH_WHILE;
 	token++;
 
@@ -958,8 +931,7 @@ Token* parse_while(Module* module, Token* token, Indent16 indent, Branch* branch
 	return token;
 }
 
-static
-Token* parse_for(Module* module, Token* token, Indent16 indent, Branch* branch) {
+static Token* parse_for(Module* module, Token* token, Indent16 indent, Branch* branch) {
 	branch->branch_kind = BRANCH_FOR;
 	token++;
 
@@ -1002,8 +974,7 @@ Token* parse_for(Module* module, Token* token, Indent16 indent, Branch* branch) 
 	return token;
 }
 
-static
-Token* parse_match(Module* module, Token* token, Indent16 indent, Branch* branch) {
+static Token* parse_match(Module* module, Token* token, Indent16 indent, Branch* branch) {
 	branch->branch_kind = BRANCH_MATCH;
 	token++; // match
 
@@ -1079,9 +1050,8 @@ Token* parse_match(Module* module, Token* token, Indent16 indent, Branch* branch
 	return token;
 }
 
-static
-Token* parse_branch(Module* module, Token* token, Indent16 indent, Branch* branch) {
-	*branch = (Branch){ 0 };
+static Token* parse_branch(Module* module, Token* token, Indent16 indent, Branch* branch) {
+	*branch = (Branch){ .kind = AST_BRANCH };
 
 	switch (token->kind) {
 		case TOKEN_COLON: {
@@ -1101,13 +1071,18 @@ Token* parse_branch(Module* module, Token* token, Indent16 indent, Branch* branc
 	return token;
 }
 
-static
-Token* parse_controlflow(Module* module, Token* token, Indent16 indent, ControlFlow* out) {
+static Token* parse_controlflow(Module* module, Token* token, Indent16 indent, ControlFlow* out) {
 	ClauseKind clause = CLAUSE_INIT;
-	*out = (ControlFlow){ 0 };
+	*out = (ControlFlow){ .kind = AST_CONTROLFLOW };
+
+	u64 capacity = 0;
 
 	while (true) {
-		out->branches = realloc(out->branches, sizeof(Branch)*(out->branch_count), sizeof(Branch)*(out->branch_count+1));
+		if (out->branch_count == capacity) {
+			capacity = next_pow2(capacity);
+			out->branches = realloc(out->branches, sizeof(Branch)*out->branch_count, sizeof(Branch)*capacity);
+		}
+
 		token = parse_branch(module, token, indent, &out->branches[out->branch_count]);
 		out->branch_count++;
 
@@ -1144,8 +1119,7 @@ Token* parse_controlflow(Module* module, Token* token, Indent16 indent, ControlF
 	return token;
 }
 
-static
-Token* parse_statement(Module* module, Token* token, Indent16 indent, Code* code) {
+static Token* parse_statement(Module* module, Token* token, Indent16 indent, Code* code) {
 	Statement statement = { 0 };
 
 	switch (token->kind) {
@@ -1183,14 +1157,16 @@ Token* parse_statement(Module* module, Token* token, Indent16 indent, Code* code
 		case TOKEN_WHILE:
 		case TOKEN_MATCH:
 			statement.kind = AST_STATEMENT_CONTROLFLOW;
+
 			token = parse_controlflow(module, token, indent, &statement.controlflow);
 			break;
 
 		case TOKEN_IDENTIFIER_VARIABLE: {
+			statement.kind = AST_STATEMENT_VARDECL;
+
 			if (token[1].kind != TOKEN_COLON)
 				goto GOTO_PARSE_EXPRESSION_STATEMENT;
 
-			statement.kind = AST_STATEMENT_VARDECL;
 			Variable* var = stack_alloc(sizeof(Variable));
 			zero(var, sizeof(Variable));
 			statement.var = var;
@@ -1246,8 +1222,7 @@ Token* parse_statement(Module* module, Token* token, Indent16 indent, Code* code
 	return token;
 }
 
-static
-Token* parse_code(Module* module, Token* token, Indent16 indent, Code* code) {
+static Token* parse_code(Module* module, Token* token, Indent16 indent, Code* code) {
 	if (token->indent > indent)
 		errort(token, "Invalid indent for statement\n");
 
@@ -1261,8 +1236,7 @@ Token* parse_code(Module* module, Token* token, Indent16 indent, Code* code) {
 	return token;
 }
 
-static
-Token* parse_params(Module* module, Function* func, Token* token, Indent16 indent) {
+static Token* parse_params(Module* module, Function* func, Token* token, Indent16 indent) {
 	Token* open = token;
 
 	if (!open->closure)
@@ -1300,8 +1274,7 @@ Token* parse_params(Module* module, Function* func, Token* token, Indent16 inden
 	return token;
 }
 
-static
-Token* parse_function(Module* module, Token* token, Indent16 indent) {
+static Token* parse_function(Module* module, Token* token, Indent16 indent) {
 	Function func = { 0 };
 
 	check_indent(token, indent);
@@ -1329,8 +1302,7 @@ Token* parse_function(Module* module, Token* token, Indent16 indent) {
 	return token;
 }
 
-static
-void parse_module(Module* module) {
+static void parse_module(Module* module) {
 	Token* token = module->tokens;
 
 	// PreAllocate functions
@@ -1381,10 +1353,11 @@ void parse_module(Module* module) {
 				token = parse_enum(module, token, 0);
 				break;
 
-			default:
+			default: {
 				errort(token, "Unexpected token when parsing global scope: %\n",
 					arg_token(token)
 				);
+			}
 		}
 	}
 }

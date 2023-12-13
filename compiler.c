@@ -77,11 +77,14 @@ int main(int argc, char* argv[]) {
 	init_module_store();
 	init_ir();
 
+	list_dir(".");
+
 	// @Todo: Load all files in directory
 
 	Module* module = make_module(tostr("test.q"));
 	lex(module);
 	parse_module(module);
+
 	print("Compiler finished.\n");
 	flush_output_buffer(&standard_output_buffer);
 	return 0;

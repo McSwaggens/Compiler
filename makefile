@@ -5,14 +5,15 @@ release  = -O3
 args = \
 	-mcmodel=medium\
 	-ffreestanding\
-	# -nostartfiles\
-	# -static\
-	# -nolibc\
 	-fno-builtin-free\
 	-fno-builtin-realloc\
 	-std=c99\
 	-march=znver3 \
-	$(release)
+	$(debug)
+
+	# -nostartfiles\
+	# -static\
+	# -nolibc\
 
 compiler: *.c *.h *.asm makefile
 	nasm -felf64 extra.asm -o assembler_stuff.o

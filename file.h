@@ -14,11 +14,12 @@ typedef s32 FileHandle32;
 #define FILE_HANDLE_UNIX_STANDARD_ERROR   2
 
 typedef enum FileMode {
-	FILE_MODE_OPEN,     // Open an existing file.
-	FILE_MODE_APPEND,   // Open an existing file and go to the end.
-	FILE_MODE_TRUNCATE, // Open and truncate an existing file.
-	FILE_MODE_CREATE,   // Create a file that doesn't already exist.
-						// ProTip: Believe it or not; there is an 'e' at the end of 'create'!
+	FILE_MODE_OPEN,      // Open an existing file.
+	FILE_MODE_DIRECTORY, // Open an existing file.
+	FILE_MODE_APPEND,    // Open an existing file and go to the end.
+	FILE_MODE_TRUNCATE,  // Open and truncate an existing file.
+	FILE_MODE_CREATE,    // Create a file that doesn't already exist.
+						 // ProTip: Believe it or not; there is an 'e' at the end of 'create'!
 
 	FILE_MODE_CREATE_OR_OPEN,     // Open or create a file.
 	FILE_MODE_CREATE_OR_APPEND,   // Create file if it doesn't already exist, otherwise go to the end.

@@ -47,6 +47,9 @@ enum AstKind {
 	AST_ENUM,
 	AST_ENUM_MEMBER,
 
+	AST_BRANCH,
+	AST_CONTROLFLOW,
+
 	AST_EXPR_NULL,
 	AST_EXPR_TRUE,
 	AST_EXPR_FALSE,
@@ -293,6 +296,7 @@ struct Branch {
 };
 
 struct ControlFlow {
+	AstKind kind : 8;
 	Branch* branches;
 	u64 branch_count;
 };

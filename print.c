@@ -497,103 +497,108 @@ static void write_expression(OutputBuffer* buffer, Expression* expr) {
 }
 
 static void write_ast_kind(OutputBuffer* buffer, AstKind kind) {
+	char* s = 0;
 	switch (kind) {
-		case AST_INVALID:                     write_cstring(buffer, "AST_INVALID");                       break;
+		case AST_INVALID:                      s = "AST_INVALID";                       break;
 
 		// -------------------------------------------------- //
 
-		case AST_FUNCTION:                     write_cstring(buffer, "AST_FUNCTION");                     break;
-		case AST_VARIABLE:                     write_cstring(buffer, "AST_VARIABLE");                     break;
+		case AST_FUNCTION:                     s = "AST_FUNCTION";                     break;
+		case AST_VARIABLE:                     s = "AST_VARIABLE";                     break;
+		case AST_BRANCH:                       s = "AST_BRANCH";                       break;
+		case AST_CONTROLFLOW:                  s = "AST_CONTROLFLOW";                  break;
 
 		// -------------------------------------------------- //
 
-		case AST_EXPR_NULL:                    write_cstring(buffer, "AST_EXPR_NULL");                    break;
-		case AST_EXPR_TRUE:                    write_cstring(buffer, "AST_EXPR_TRUE");                    break;
-		case AST_EXPR_FALSE:                   write_cstring(buffer, "AST_EXPR_FALSE");                   break;
-		case AST_EXPR_LITERAL:                 write_cstring(buffer, "AST_EXPR_LITERAL");                 break;
-		case AST_EXPR_FUNCTION:                write_cstring(buffer, "AST_EXPR_FUNCTION");                break;
-		case AST_EXPR_BASETYPE_PRIMITIVE:      write_cstring(buffer, "AST_EXPR_BASETYPE_PRIMITIVE");      break;
-		case AST_EXPR_BASETYPE_IDENTIFIER:     write_cstring(buffer, "AST_EXPR_BASETYPE_IDENTIFIER");     break;
-		case AST_EXPR_IDENTIFIER_CONSTANT:     write_cstring(buffer, "AST_EXPR_IDENTIFIER_CONSTANT");     break;
-		case AST_EXPR_IDENTIFIER_FORMAL:       write_cstring(buffer, "AST_EXPR_IDENTIFIER_FORMAL");       break;
-		case AST_EXPR_IDENTIFIER_VARIABLE:     write_cstring(buffer, "AST_EXPR_IDENTIFIER_VARIABLE");     break;
+		case AST_EXPR_NULL:                    s = "AST_EXPR_NULL";                    break;
+		case AST_EXPR_TRUE:                    s = "AST_EXPR_TRUE";                    break;
+		case AST_EXPR_FALSE:                   s = "AST_EXPR_FALSE";                   break;
+		case AST_EXPR_LITERAL:                 s = "AST_EXPR_LITERAL";                 break;
+		case AST_EXPR_FUNCTION:                s = "AST_EXPR_FUNCTION";                break;
+		case AST_EXPR_BASETYPE_PRIMITIVE:      s = "AST_EXPR_BASETYPE_PRIMITIVE";      break;
+		case AST_EXPR_BASETYPE_IDENTIFIER:     s = "AST_EXPR_BASETYPE_IDENTIFIER";     break;
+		case AST_EXPR_IDENTIFIER_CONSTANT:     s = "AST_EXPR_IDENTIFIER_CONSTANT";     break;
+		case AST_EXPR_IDENTIFIER_FORMAL:       s = "AST_EXPR_IDENTIFIER_FORMAL";       break;
+		case AST_EXPR_IDENTIFIER_VARIABLE:     s = "AST_EXPR_IDENTIFIER_VARIABLE";     break;
 
-		case AST_EXPR_ARRAY:                   write_cstring(buffer, "AST_EXPR_ARRAY");                   break;
-		case AST_EXPR_TUPLE:                   write_cstring(buffer, "AST_EXPR_TUPLE");                   break;
+		case AST_EXPR_ARRAY:                   s = "AST_EXPR_ARRAY";                   break;
+		case AST_EXPR_TUPLE:                   s = "AST_EXPR_TUPLE";                   break;
 
-		case AST_EXPR_SPEC_PTR:                write_cstring(buffer, "AST_EXPR_SPEC_PTR");                break;
-		case AST_EXPR_SPEC_ARRAY:              write_cstring(buffer, "AST_EXPR_SPEC_ARRAY");              break;
-		case AST_EXPR_SPEC_FIXED:              write_cstring(buffer, "AST_EXPR_SPEC_FIXED");              break;
+		case AST_EXPR_SPEC_PTR:                s = "AST_EXPR_SPEC_PTR";                break;
+		case AST_EXPR_SPEC_ARRAY:              s = "AST_EXPR_SPEC_ARRAY";              break;
+		case AST_EXPR_SPEC_FIXED:              s = "AST_EXPR_SPEC_FIXED";              break;
 
-		case AST_EXPR_UNARY_PTR:               write_cstring(buffer, "AST_EXPR_UNARY_PTR");               break;
-		case AST_EXPR_UNARY_REF:               write_cstring(buffer, "AST_EXPR_UNARY_REF");               break;
-		case AST_EXPR_UNARY_ABS:               write_cstring(buffer, "AST_EXPR_UNARY_ABS");               break;
-		case AST_EXPR_UNARY_INVERSE:           write_cstring(buffer, "AST_EXPR_UNARY_INVERSE");           break;
-		case AST_EXPR_UNARY_NOT:               write_cstring(buffer, "AST_EXPR_UNARY_NOT");               break;
-		case AST_EXPR_UNARY_BIT_NOT:           write_cstring(buffer, "AST_EXPR_UNARY_BIT_NOT");           break;
+		case AST_EXPR_UNARY_PTR:               s = "AST_EXPR_UNARY_PTR";               break;
+		case AST_EXPR_UNARY_REF:               s = "AST_EXPR_UNARY_REF";               break;
+		case AST_EXPR_UNARY_ABS:               s = "AST_EXPR_UNARY_ABS";               break;
+		case AST_EXPR_UNARY_INVERSE:           s = "AST_EXPR_UNARY_INVERSE";           break;
+		case AST_EXPR_UNARY_NOT:               s = "AST_EXPR_UNARY_NOT";               break;
+		case AST_EXPR_UNARY_BIT_NOT:           s = "AST_EXPR_UNARY_BIT_NOT";           break;
 
-		case AST_EXPR_UNARY_IMPLICIT_CAST:     write_cstring(buffer, "AST_EXPR_UNARY_IMPLICIT_CAST");     break;
+		case AST_EXPR_UNARY_IMPLICIT_CAST:     s = "AST_EXPR_UNARY_IMPLICIT_CAST";     break;
 
-		case AST_EXPR_BINARY_ADD:              write_cstring(buffer, "AST_EXPR_BINARY_ADD");              break;
-		case AST_EXPR_BINARY_SUB:              write_cstring(buffer, "AST_EXPR_BINARY_SUB");              break;
-		case AST_EXPR_BINARY_MUL:              write_cstring(buffer, "AST_EXPR_BINARY_MUL");              break;
-		case AST_EXPR_BINARY_DIV:              write_cstring(buffer, "AST_EXPR_BINARY_DIV");              break;
-		case AST_EXPR_BINARY_MOD:              write_cstring(buffer, "AST_EXPR_BINARY_MOD");              break;
-		case AST_EXPR_BINARY_BIT_XOR:          write_cstring(buffer, "AST_EXPR_BINARY_BIT_XOR");          break;
-		case AST_EXPR_BINARY_BIT_AND:          write_cstring(buffer, "AST_EXPR_BINARY_BIT_AND");          break;
-		case AST_EXPR_BINARY_BIT_OR:           write_cstring(buffer, "AST_EXPR_BINARY_BIT_OR");           break;
-		case AST_EXPR_BINARY_OR:               write_cstring(buffer, "AST_EXPR_BINARY_OR");               break;
-		case AST_EXPR_BINARY_AND:              write_cstring(buffer, "AST_EXPR_BINARY_AND");              break;
-		case AST_EXPR_BINARY_EQUAL:            write_cstring(buffer, "AST_EXPR_BINARY_EQUAL");            break;
-		case AST_EXPR_BINARY_NOT_EQUAL:        write_cstring(buffer, "AST_EXPR_BINARY_NOT_EQUAL");        break;
-		case AST_EXPR_BINARY_LESS:             write_cstring(buffer, "AST_EXPR_BINARY_LESS");             break;
-		case AST_EXPR_BINARY_LESS_OR_EQUAL:    write_cstring(buffer, "AST_EXPR_BINARY_LESS_OR_EQUAL");    break;
-		case AST_EXPR_BINARY_GREATER:          write_cstring(buffer, "AST_EXPR_BINARY_GREATER");          break;
-		case AST_EXPR_BINARY_GREATER_OR_EQUAL: write_cstring(buffer, "AST_EXPR_BINARY_GREATER_OR_EQUAL"); break;
-		case AST_EXPR_BINARY_DOT:              write_cstring(buffer, "AST_EXPR_BINARY_DOT");              break;
-		case AST_EXPR_BINARY_DOT_DOT:          write_cstring(buffer, "AST_EXPR_BINARY_DOT_DOT");          break;
-		case AST_EXPR_BINARY_LSHIFT:           write_cstring(buffer, "AST_EXPR_BINARY_LSHIFT");           break;
-		case AST_EXPR_BINARY_RSHIFT:           write_cstring(buffer, "AST_EXPR_BINARY_RSHIFT");           break;
-		case AST_EXPR_BINARY_SPAN:             write_cstring(buffer, "AST_EXPR_BINARY_SPAN");             break;
-		case AST_EXPR_CALL:                    write_cstring(buffer, "AST_EXPR_CALL");                    break;
-		case AST_EXPR_INDEX:                   write_cstring(buffer, "AST_EXPR_INDEX");                   break;
+		case AST_EXPR_BINARY_ADD:              s = "AST_EXPR_BINARY_ADD";              break;
+		case AST_EXPR_BINARY_SUB:              s = "AST_EXPR_BINARY_SUB";              break;
+		case AST_EXPR_BINARY_MUL:              s = "AST_EXPR_BINARY_MUL";              break;
+		case AST_EXPR_BINARY_DIV:              s = "AST_EXPR_BINARY_DIV";              break;
+		case AST_EXPR_BINARY_MOD:              s = "AST_EXPR_BINARY_MOD";              break;
+		case AST_EXPR_BINARY_BIT_XOR:          s = "AST_EXPR_BINARY_BIT_XOR";          break;
+		case AST_EXPR_BINARY_BIT_AND:          s = "AST_EXPR_BINARY_BIT_AND";          break;
+		case AST_EXPR_BINARY_BIT_OR:           s = "AST_EXPR_BINARY_BIT_OR";           break;
+		case AST_EXPR_BINARY_OR:               s = "AST_EXPR_BINARY_OR";               break;
+		case AST_EXPR_BINARY_AND:              s = "AST_EXPR_BINARY_AND";              break;
+		case AST_EXPR_BINARY_EQUAL:            s = "AST_EXPR_BINARY_EQUAL";            break;
+		case AST_EXPR_BINARY_NOT_EQUAL:        s = "AST_EXPR_BINARY_NOT_EQUAL";        break;
+		case AST_EXPR_BINARY_LESS:             s = "AST_EXPR_BINARY_LESS";             break;
+		case AST_EXPR_BINARY_LESS_OR_EQUAL:    s = "AST_EXPR_BINARY_LESS_OR_EQUAL";    break;
+		case AST_EXPR_BINARY_GREATER:          s = "AST_EXPR_BINARY_GREATER";          break;
+		case AST_EXPR_BINARY_GREATER_OR_EQUAL: s = "AST_EXPR_BINARY_GREATER_OR_EQUAL"; break;
+		case AST_EXPR_BINARY_DOT:              s = "AST_EXPR_BINARY_DOT";              break;
+		case AST_EXPR_BINARY_DOT_DOT:          s = "AST_EXPR_BINARY_DOT_DOT";          break;
+		case AST_EXPR_BINARY_LSHIFT:           s = "AST_EXPR_BINARY_LSHIFT";           break;
+		case AST_EXPR_BINARY_RSHIFT:           s = "AST_EXPR_BINARY_RSHIFT";           break;
+		case AST_EXPR_BINARY_SPAN:             s = "AST_EXPR_BINARY_SPAN";             break;
+		case AST_EXPR_CALL:                    s = "AST_EXPR_CALL";                    break;
+		case AST_EXPR_INDEX:                   s = "AST_EXPR_INDEX";                   break;
 
-		case AST_EXPR_TERNARY_IF_ELSE:         write_cstring(buffer, "AST_EXPR_TERNARY_IF_ELSE");         break;
-
-		// -------------------------------------------------- //
-
-		case AST_STATEMENT_ASSIGNMENT:         write_cstring(buffer, "AST_STATEMENT_ASSIGNMENT");         break;
-
-		case AST_STATEMENT_ASSIGNMENT_LSH:     write_cstring(buffer, "AST_STATEMENT_ASSIGNMENT_LSH");     break;
-		case AST_STATEMENT_ASSIGNMENT_RSH:     write_cstring(buffer, "AST_STATEMENT_ASSIGNMENT_RSH");     break;
-		case AST_STATEMENT_ASSIGNMENT_DIV:     write_cstring(buffer, "AST_STATEMENT_ASSIGNMENT_DIV");     break;
-		case AST_STATEMENT_ASSIGNMENT_MOD:     write_cstring(buffer, "AST_STATEMENT_ASSIGNMENT_MOD");     break;
-		case AST_STATEMENT_ASSIGNMENT_ADD:     write_cstring(buffer, "AST_STATEMENT_ASSIGNMENT_ADD");     break;
-		case AST_STATEMENT_ASSIGNMENT_SUB:     write_cstring(buffer, "AST_STATEMENT_ASSIGNMENT_SUB");     break;
-		case AST_STATEMENT_ASSIGNMENT_MUL:     write_cstring(buffer, "AST_STATEMENT_ASSIGNMENT_MUL");     break;
-		case AST_STATEMENT_ASSIGNMENT_BIT_XOR: write_cstring(buffer, "AST_STATEMENT_ASSIGNMENT_BIT_XOR"); break;
-		case AST_STATEMENT_ASSIGNMENT_BIT_AND: write_cstring(buffer, "AST_STATEMENT_ASSIGNMENT_BIT_AND"); break;
-		case AST_STATEMENT_ASSIGNMENT_BIT_OR:  write_cstring(buffer, "AST_STATEMENT_ASSIGNMENT_BIT_OR");  break;
-
-		case AST_STATEMENT_EXPRESSION:         write_cstring(buffer, "AST_STATEMENT_EXPRESSION");         break;
-		case AST_STATEMENT_CONTROLFLOW:        write_cstring(buffer, "AST_STATEMENT_CONTROLFLOW");        break;
-		case AST_STATEMENT_VARDECL:            write_cstring(buffer, "AST_STATEMENT_VARDECL");            break;
-		case AST_STATEMENT_RETURN:             write_cstring(buffer, "AST_STATEMENT_RETURN");             break;
-		case AST_STATEMENT_BREAK:              write_cstring(buffer, "AST_STATEMENT_BREAK");              break;
-		case AST_STATEMENT_CONTINUE:           write_cstring(buffer, "AST_STATEMENT_CONTINUE");           break;
-		case AST_STATEMENT_INC:                write_cstring(buffer, "AST_STATEMENT_INC");                break;
-		case AST_STATEMENT_DEC:                write_cstring(buffer, "AST_STATEMENT_DEC");                break;
+		case AST_EXPR_TERNARY_IF_ELSE:         s = "AST_EXPR_TERNARY_IF_ELSE";         break;
 
 		// -------------------------------------------------- //
 
-		case AST_STRUCT:                       write_cstring(buffer, "AST_STRUCT");                       break;
-		case AST_STRUCT_MEMBER:                write_cstring(buffer, "AST_STRUCT_MEMBER");                break;
+		case AST_STATEMENT_ASSIGNMENT:         s = "AST_STATEMENT_ASSIGNMENT";         break;
+
+		case AST_STATEMENT_ASSIGNMENT_LSH:     s = "AST_STATEMENT_ASSIGNMENT_LSH";     break;
+		case AST_STATEMENT_ASSIGNMENT_RSH:     s = "AST_STATEMENT_ASSIGNMENT_RSH";     break;
+		case AST_STATEMENT_ASSIGNMENT_DIV:     s = "AST_STATEMENT_ASSIGNMENT_DIV";     break;
+		case AST_STATEMENT_ASSIGNMENT_MOD:     s = "AST_STATEMENT_ASSIGNMENT_MOD";     break;
+		case AST_STATEMENT_ASSIGNMENT_ADD:     s = "AST_STATEMENT_ASSIGNMENT_ADD";     break;
+		case AST_STATEMENT_ASSIGNMENT_SUB:     s = "AST_STATEMENT_ASSIGNMENT_SUB";     break;
+		case AST_STATEMENT_ASSIGNMENT_MUL:     s = "AST_STATEMENT_ASSIGNMENT_MUL";     break;
+		case AST_STATEMENT_ASSIGNMENT_BIT_XOR: s = "AST_STATEMENT_ASSIGNMENT_BIT_XOR"; break;
+		case AST_STATEMENT_ASSIGNMENT_BIT_AND: s = "AST_STATEMENT_ASSIGNMENT_BIT_AND"; break;
+		case AST_STATEMENT_ASSIGNMENT_BIT_OR:  s = "AST_STATEMENT_ASSIGNMENT_BIT_OR";  break;
+
+		case AST_STATEMENT_EXPRESSION:         s = "AST_STATEMENT_EXPRESSION";         break;
+		case AST_STATEMENT_CONTROLFLOW:        s = "AST_STATEMENT_CONTROLFLOW";        break;
+		case AST_STATEMENT_VARDECL:            s = "AST_STATEMENT_VARDECL";            break;
+		case AST_STATEMENT_RETURN:             s = "AST_STATEMENT_RETURN";             break;
+		case AST_STATEMENT_BREAK:              s = "AST_STATEMENT_BREAK";              break;
+		case AST_STATEMENT_CONTINUE:           s = "AST_STATEMENT_CONTINUE";           break;
+		case AST_STATEMENT_INC:                s = "AST_STATEMENT_INC";                break;
+		case AST_STATEMENT_DEC:                s = "AST_STATEMENT_DEC";                break;
 
 		// -------------------------------------------------- //
 
-		case AST_ENUM:                         write_cstring(buffer, "AST_ENUM");                         break;
-		case AST_ENUM_MEMBER:                  write_cstring(buffer, "AST_ENUM_MEMBER");                  break;
+		case AST_STRUCT:                       s = "AST_STRUCT";                       break;
+		case AST_STRUCT_MEMBER:                s = "AST_STRUCT_MEMBER";                break;
+
+		// -------------------------------------------------- //
+
+		case AST_ENUM:                         s = "AST_ENUM";                         break;
+		case AST_ENUM_MEMBER:                  s = "AST_ENUM_MEMBER";                  break;
 	}
+
+	write_cstring(buffer, s);
 }
 
 static void write_statement(OutputBuffer* buffer, Statement* statement) {
@@ -693,6 +698,14 @@ static void write_ast(OutputBuffer* buffer, Ast* ast) {
 
 	switch (ast->kind) {
 		case AST_INVALID:
+			return;
+
+		case AST_BRANCH:
+			write_cstring(buffer, "branch");
+			return;
+
+		case AST_CONTROLFLOW:
+			write_cstring(buffer, "controlflow");
 			return;
 
 		case AST_FUNCTION:

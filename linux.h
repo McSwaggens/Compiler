@@ -203,7 +203,7 @@ enum Linux_SysCall {
 	LINUX_SYSCALL_214             = 214,
 	LINUX_SYSCALL_215             = 215,
 	LINUX_SYSCALL_216             = 216,
-	LINUX_SYSCALL_217             = 217,
+	LINUX_SYSCALL_GETDENTS64      = 217,
 	LINUX_SYSCALL_218             = 218,
 	LINUX_SYSCALL_219             = 219,
 	LINUX_SYSCALL_220             = 220,
