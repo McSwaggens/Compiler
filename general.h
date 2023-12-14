@@ -88,26 +88,22 @@ static inline s64 next_pow2(s64 n) { return 1llu << (64llu - count_leading_zeroe
 static inline s64 boi(s64 n) { return 64-count_leading_zeroes64(n); }
 static inline s64 bit_count(s64 n) { return __builtin_popcount(n); }
 
-static inline
-bool is_pow2_or_zero(u64 n) {
+static inline bool is_pow2_or_zero(u64 n) {
 	return (n & n-1) == 0;
 }
 
-static inline
-bool is_pow2(s64 n) {
+static inline bool is_pow2(s64 n) {
 	return bit_count(n) == 1;
 }
 
-static inline
-s64 round_pow2(s64 n) {
+static inline s64 round_pow2(s64 n) {
 	if (bit_count(n) == 1)
 		return n;
 
 	return next_pow2(n);
 }
 
-static inline
-s64 round_to_nearest_mulpow2(s64 n, u64 pow2) {
+static inline s64 round_to_nearest_mulpow2(s64 n, u64 pow2) {
 	return (n + (pow2-1)) & ~(pow2-1);
 }
 

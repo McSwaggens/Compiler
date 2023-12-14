@@ -397,21 +397,74 @@ static bool ih_test(Token* token, IndentHelper* helper, s32 adjustment) {
 
 static Token* internal_parse_expression(Module* module, Token* token, bool allow_equals, u8 parent_precedence, IndentHelper* helper, Expression** out) {
 	// Make sure to call ih_check before internal_parse_expression
-	Expression* left = null;
+	Expression* left = alloc_expression();
 	Token* begin = token;
 
 	u8 unaryprec = correct_unary_precedence(unary_precedence(token->kind), token);
 
+	static const TypeID lut[] = {
+		[TOKEN_LITERAL_INT8]    = TYPE_INT8,
+		[TOKEN_LITERAL_INT16]   = TYPE_INT16,
+		[TOKEN_LITERAL_INT32]   = TYPE_INT32,
+		[TOKEN_LITERAL_INT64]   = TYPE_INT64,
+		[TOKEN_LITERAL_UINT8]   = TYPE_UINT8,
+		[TOKEN_LITERAL_UINT16]  = TYPE_UINT16,
+		[TOKEN_LITERAL_UINT32]  = TYPE_UINT32,
+		[TOKEN_LITERAL_UINT64]  = TYPE_UINT64,
+		[TOKEN_LITERAL_FLOAT32] = TYPE_FLOAT32,
+		[TOKEN_LITERAL_FLOAT64] = TYPE_FLOAT64,
+		[TOKEN_BYTE]            = TYPE_BYTE,
+		[TOKEN_BOOL]            = TYPE_BOOL,
+		[TOKEN_INT]             = TYPE_INT64,
+		[TOKEN_INT8]            = TYPE_INT8,
+		[TOKEN_INT16]           = TYPE_INT16,
+		[TOKEN_INT32]           = TYPE_INT32,
+		[TOKEN_INT64]           = TYPE_INT64,
+		[TOKEN_UINT]            = TYPE_UINT64,
+		[TOKEN_UINT8]           = TYPE_UINT8,
+		[TOKEN_UINT16]          = TYPE_UINT16,
+		[TOKEN_UINT32]          = TYPE_UINT32,
+		[TOKEN_UINT64]          = TYPE_UINT64,
+		[TOKEN_FLOAT32]         = TYPE_FLOAT32,
+		[TOKEN_FLOAT64]         = TYPE_FLOAT64,
+		[TOKEN_TYPE_ID]         = TYPE_TYPEID,
+	};
+
 	switch (token->kind) {
-		AstKind kind;
+		case TOKEN_IDENTIFIER_CONSTANT: left->kind = AST_EXPR_IDENTIFIER_CONSTANT; goto GOTO_IDENTIFIER_TERM;
+		case TOKEN_IDENTIFIER_FORMAL:   left->kind = AST_EXPR_IDENTIFIER_FORMAL;   goto GOTO_IDENTIFIER_TERM;
+		case TOKEN_IDENTIFIER_VARIABLE: left->kind = AST_EXPR_IDENTIFIER_VARIABLE; goto GOTO_IDENTIFIER_TERM;
+		GOTO_IDENTIFIER_TERM: {
+			left->term.token = token,
+			token++;
+		} break;
 
-		case TOKEN_IDENTIFIER_CONSTANT: kind = AST_EXPR_IDENTIFIER_CONSTANT; goto GOTO_TERM;
-		case TOKEN_IDENTIFIER_FORMAL:   kind = AST_EXPR_IDENTIFIER_FORMAL;   goto GOTO_TERM;
-		case TOKEN_IDENTIFIER_VARIABLE: kind = AST_EXPR_IDENTIFIER_VARIABLE; goto GOTO_TERM;
+		case TOKEN_TRUE: {
+			*left = (Expression){
+				.kind = AST_EXPR_TRUE,
+				.value = const_int(1),
+				.type = TYPE_BOOL,
+			};
+			token++;
+		} break;
 
-		case TOKEN_TRUE:  kind = AST_EXPR_TRUE;  goto GOTO_TERM;
-		case TOKEN_FALSE: kind = AST_EXPR_FALSE; goto GOTO_TERM;
-		case TOKEN_NULL:  kind = AST_EXPR_NULL;  goto GOTO_TERM;
+		case TOKEN_FALSE: {
+			*left = (Expression){
+				.kind = AST_EXPR_FALSE,
+				.value = const_int(0),
+				.type = TYPE_BOOL,
+			};
+			token++;
+		} break;
+
+		case TOKEN_NULL: {
+			*left = (Expression){
+				.kind = AST_EXPR_NULL,
+				.value = const_int(0),
+				.type = get_ptr_type(TYPE_BYTE),
+			};
+			token++;
+		} break;
 
 		case TOKEN_LITERAL_INT8:
 		case TOKEN_LITERAL_INT16:
@@ -420,32 +473,72 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 		case TOKEN_LITERAL_UINT8:
 		case TOKEN_LITERAL_UINT16:
 		case TOKEN_LITERAL_UINT32:
-		case TOKEN_LITERAL_UINT64:
-			kind = AST_EXPR_LITERAL;
-			goto GOTO_TERM;
-
-		case TOKEN_LITERAL_FLOAT32:
-		case TOKEN_LITERAL_FLOAT64:
-		case TOKEN_LITERAL_STRING:
-			kind = AST_EXPR_LITERAL;
-			goto GOTO_TERM;
-
-		case TOKEN_BYTE:   case TOKEN_BOOL:   case TOKEN_INT:     case TOKEN_INT8:    case TOKEN_INT16:
-		case TOKEN_INT32:  case TOKEN_INT64:  case TOKEN_UINT:    case TOKEN_UINT8:   case TOKEN_UINT16:
-		case TOKEN_UINT32: case TOKEN_UINT64: case TOKEN_FLOAT32: case TOKEN_FLOAT64: case TOKEN_TYPE_ID:
-			kind = AST_EXPR_BASETYPE_PRIMITIVE;
-			goto GOTO_TERM;
-
-		GOTO_TERM: {
-			left = alloc_expression();
+		case TOKEN_LITERAL_UINT64: {
 			*left = (Expression){
-				.kind = kind,
+				.kind  = AST_EXPR_LITERAL,
+				.value = const_int(token->i),
+				.type  = lut[token->kind],
 				.term.token = token,
+			};
+			token++;
+		} break;
+
+		case TOKEN_LITERAL_FLOAT32: {
+			*left = (Expression){
+				.kind  = AST_EXPR_LITERAL,
+				.value = const_f32(token->f),
+				.type  = lut[token->kind],
+				.term.token = token,
+			};
+			token++;
+		} break;
+
+		case TOKEN_LITERAL_FLOAT64: {
+			*left = (Expression){
+				.kind  = AST_EXPR_LITERAL,
+				.value = const_f64(token->d),
+				.type  = lut[token->kind],
+				.term.token = token,
+			};
+			token++;
+		} break;
+
+		case TOKEN_LITERAL_STRING: {
+			*left = (Expression){
+				.kind  = AST_EXPR_LITERAL,
+				.value = 0,
+				.type  = get_fixed_type(TYPE_INT8, token->string.length),
+				.term.token = token,
+			};
+			token++;
+		} break;
+
+		case TOKEN_BYTE:
+		case TOKEN_BOOL:
+		case TOKEN_INT:
+		case TOKEN_INT8:
+		case TOKEN_INT16:
+		case TOKEN_INT32:
+		case TOKEN_INT64:
+		case TOKEN_UINT:
+		case TOKEN_UINT8:
+		case TOKEN_UINT16:
+		case TOKEN_UINT32:
+		case TOKEN_UINT64:
+		case TOKEN_FLOAT32:
+		case TOKEN_FLOAT64:
+		case TOKEN_TYPE_ID: {
+			*left = (Expression){
+				.kind = AST_EXPR_BASETYPE_PRIMITIVE,
+				.term.token = token,
+				.value = const_int(lut[token->kind]),
+				.type = TYPE_TYPEID,
 			};
 
 			token++;
 		} break;
 
+		AstKind kind;
 		case TOKEN_ASTERISK:    kind = AST_EXPR_UNARY_PTR;     goto GOTO_UNARY;
 		case TOKEN_AT:          kind = AST_EXPR_UNARY_REF;     goto GOTO_UNARY;
 		case TOKEN_EXCLAMATION: kind = AST_EXPR_UNARY_NOT;     goto GOTO_UNARY;
@@ -453,7 +546,6 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 		case TOKEN_MINUS:       kind = AST_EXPR_UNARY_INVERSE; goto GOTO_UNARY;
 		case TOKEN_PLUS:        kind = AST_EXPR_UNARY_ABS;     goto GOTO_UNARY;
 		GOTO_UNARY: {
-			left = alloc_expression();
 			*left = (Expression){
 				.kind = kind,
 				.unary.optoken = token,
@@ -469,7 +561,6 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 		} break;
 
 		case TOKEN_OPEN_BRACE: {
-			left = alloc_expression();
 			*left = (Expression){
 				.kind = AST_EXPR_ARRAY,
 			};
@@ -529,7 +620,6 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 		} break;
 
 		case TOKEN_OPEN_PAREN: {
-			left = alloc_expression();
 			*left = (Expression){
 				.kind = AST_EXPR_TUPLE,
 			};
@@ -590,8 +680,6 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 		} break;
 
 		case TOKEN_OPEN_BRACKET: {
-			left = alloc_expression();
-
 			ih_enter(helper);
 			token++; // [
 
@@ -650,13 +738,12 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 		} break;
 
 		default:
+			assert_unreachable();
 			break;
 	}
 
-	if (left) {
-		left->begin = begin;
-		left->end = token;
-	}
+	left->begin = begin;
+	left->end = token;
 
 	while (true) {
 		if (token->kind == TOKEN_EQUAL && !allow_equals)
@@ -1038,7 +1125,7 @@ static Token* parse_match(Module* module, Token* token, Indent16 indent, Branch*
 
 	MatchGroup* then = null;
 
-   	for (u64 i = 0; i < branch->match.group_count; i++) {
+	for (u64 i = 0; i < branch->match.group_count; i++) {
 		MatchGroup* g = &branch->match.groups[i];
 
 		g->clause_then = then;

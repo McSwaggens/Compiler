@@ -1,3 +1,5 @@
+#include "file.h"
+
 static FileHandle32 open_file(String path, FileMode mode, FileAccessFlags access_flags) {
 	if (path.length >= 4096)
 		return FILE_HANDLE_INVALD;
@@ -207,8 +209,10 @@ static void write_output_buffer(OutputBuffer* buffer, const byte* data, u64 leng
 	if (buffer->head + length < OUTPUT_BUFFER_SIZE) {
 		copy(buffer->buffer + buffer->head, data, length);
 		buffer->head += length;
+		return;
 	}
-	else if (buffer->head + length < OUTPUT_BUFFER_SIZE*2) {
+
+	if (buffer->head + length < OUTPUT_BUFFER_SIZE*2) {
 		u64 precopy_size = OUTPUT_BUFFER_SIZE - buffer->head;
 		copy(buffer->buffer + buffer->head, data, precopy_size);
 		buffer->head = OUTPUT_BUFFER_SIZE;
@@ -217,13 +221,13 @@ static void write_output_buffer(OutputBuffer* buffer, const byte* data, u64 leng
 		u64 postcopy_size = length - precopy_size;
 		copy(buffer->buffer, data+precopy_size, postcopy_size);
 		buffer->head = postcopy_size;
+		return;
 	}
-	else {
-		flush_output_buffer(buffer);
-		write_file(buffer->file_handle, data, length);
-		buffer->flush_count++;
-		buffer->flushed_bytes += length;
-	}
+
+	flush_output_buffer(buffer);
+	write_file(buffer->file_handle, data, length);
+	buffer->flush_count++;
+	buffer->flushed_bytes += length;
 }
 
 static void write_output_buffer_b(OutputBuffer* buffer, byte b) {

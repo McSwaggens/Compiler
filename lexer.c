@@ -56,8 +56,7 @@ typedef struct LiteralComponent {
 	char* end;
 } LiteralComponent;
 
-static
-Position make_pos(Lexer* lexer, char* p) {
+static Position make_pos(Lexer* lexer, char* p) {
 	return (Position) {
 		.line = lexer->line,
 		.column = p-lexer->line_begin
@@ -79,8 +78,7 @@ bool is_rspace(Token* token) {
 	return token->flags & RSPACED;
 }
 
-static
-s64 decode_binary_literal_to_int(char* begin, char* end) {
+static s64 decode_binary_literal_to_int(char* begin, char* end) {
 	s64 result = 0;
 
 	for (char* p = begin; p < end; p++) {
@@ -96,8 +94,7 @@ s64 decode_binary_literal_to_int(char* begin, char* end) {
 	return result;
 }
 
-static
-s64 decode_decimal_literal_to_int(char* begin, char* end) {
+static s64 decode_decimal_literal_to_int(char* begin, char* end) {
 	s64 result = 0;
 
 	if (end-begin == 1)
@@ -116,8 +113,7 @@ s64 decode_decimal_literal_to_int(char* begin, char* end) {
 	return result;
 }
 
-static
-s8 decode_digit(char c) {
+static s8 decode_digit(char c) {
 	return (s8[256]){
 		['0'] = 0,   ['1'] = 1,   ['2'] = 2,   ['3'] = 3,   ['4'] = 4,
 		['5'] = 5,   ['6'] = 6,   ['7'] = 7,   ['8'] = 8,   ['9'] = 9,
@@ -126,8 +122,7 @@ s8 decode_digit(char c) {
 	}[c];
 }
 
-static
-s64 decode_hex_literal_to_int(char* begin, char* end) {
+static s64 decode_hex_literal_to_int(char* begin, char* end) {
 	s64 result = 0;
 
 	if (end-begin == 1)
@@ -146,8 +141,7 @@ s64 decode_hex_literal_to_int(char* begin, char* end) {
 	return result;
 }
 
-static
-s64 decode_int(LiteralComponent whole, Base base) {
+static s64 decode_int(LiteralComponent whole, Base base) {
 	switch (base) {
 		case BASE_BINARY:       return decode_binary_literal_to_int(whole.begin, whole.end);
 		case BASE_DECIMAL:      return decode_decimal_literal_to_int(whole.begin, whole.end);
@@ -156,8 +150,7 @@ s64 decode_int(LiteralComponent whole, Base base) {
 	}
 }
 
-static
-f64 decode_float(LiteralComponent whole, LiteralComponent fract, Base base) {
+static f64 decode_float(LiteralComponent whole, LiteralComponent fract, Base base) {
 	f64 val = 0.0;
 	f64 mul;
 	f64 d;
@@ -189,8 +182,7 @@ f64 decode_float(LiteralComponent whole, LiteralComponent fract, Base base) {
 	return val;
 }
 
-static
-char* parse_literal_qualifier(char* p, LiteralQualifier* out) {
+static char* parse_literal_qualifier(char* p, LiteralQualifier* out) {
 	LiteralQualifier qualifier = { 0 };
 	char* backup = p;
 
@@ -314,8 +306,7 @@ char* parse_literal_qualifier(char* p, LiteralQualifier* out) {
 	return p;
 }
 
-static
-LiteralComponent parse_component(char* p) {
+static LiteralComponent parse_component(char* p) {
 	Base base = BASE_NONE;
 	LiteralComponent component = { 0 };
 	LiteralQualifier qualifier = { 0 };
@@ -359,8 +350,7 @@ LiteralComponent parse_component(char* p) {
 	return component;
 }
 
-static
-bool keep_fract(LiteralComponent whole, LiteralComponent fract) {
+static bool keep_fract(LiteralComponent whole, LiteralComponent fract) {
 	if (is_digit(whole.end[1]))
 		return true;
 
@@ -370,8 +360,7 @@ bool keep_fract(LiteralComponent whole, LiteralComponent fract) {
 	return false;
 }
 
-static
-String base_to_string(Base base) {
+static String base_to_string(Base base) {
 	static char* lut[] = {
 		[BASE_NONE]        = "BASE_NONE",
 		[BASE_BINARY]      = "BASE_BINARY",
@@ -382,8 +371,7 @@ String base_to_string(Base base) {
 	return tostr(lut[base]);
 }
 
-static
-String format_to_string(LiteralFormat format) {
+static String format_to_string(LiteralFormat format) {
 	static char* lut[] = {
 		[LITERAL_FORMAT_UNSPECIFIED]      = "LITERAL_FORMAT_UNSPECIFIED",
 		[LITERAL_FORMAT_FLOAT]            = "LITERAL_FORMAT_FLOAT",
@@ -394,8 +382,7 @@ String format_to_string(LiteralFormat format) {
 	return tostr(lut[format]);
 }
 
-static
-void print_qualifier(LiteralQualifier qualifier) {
+static void print_qualifier(LiteralQualifier qualifier) {
 	print("      present = %\n", arg_bool(qualifier.present));
 	print("      certain = %\n", arg_bool(qualifier.certain));
 	print("      base    = %\n", arg_string(base_to_string(qualifier.base)));
@@ -404,16 +391,14 @@ void print_qualifier(LiteralQualifier qualifier) {
 	print("      scalar  = %\n", arg_u64(qualifier.scalar));
 }
 
-static
-void print_component(LiteralComponent comp) {
+static void print_component(LiteralComponent comp) {
 	print("    raw  = \"%\"\n", arg_string((String){ comp.begin, comp.end-comp.begin }));
 	print("    base = %\n",     arg_string(base_to_string(comp.base)));
 	print("    qualifier:\n");
 	print_qualifier(comp.qualifier);
 }
 
-static
-void parse_literal(Lexer* lexer) {
+static void parse_literal(Lexer* lexer) {
 	Token* token = lexer->head;
 
 	char* p = lexer->cursor;
@@ -542,8 +527,7 @@ void parse_literal(Lexer* lexer) {
 	lexer->cursor = p;
 }
 
-static
-bool test_if_hex(char* p) {
+static bool test_if_hex(char* p) {
 	while (is_hex(*p) || *p == '_') p++;
 
 	if (*p == '.') {
@@ -566,8 +550,7 @@ bool test_if_hex(char* p) {
 	return true;
 }
 
-static
-void parse_identifier(Lexer* lexer) {
+static void parse_identifier(Lexer* lexer) {
 	Token* token = lexer->head;
 	char* begin = lexer->cursor;
 	bool begins_with_upper = is_upper(*begin);
@@ -624,8 +607,7 @@ void parse_identifier(Lexer* lexer) {
 	lexer->cursor += length;
 }
 
-static
-bool test_keyword(Lexer* lexer, const char* keyword, TokenKind kind) {
+static bool test_keyword(Lexer* lexer, const char* keyword, TokenKind kind) {
 	Token* token = lexer->head;
 	u64 length = count_cstring(keyword);
 
@@ -643,8 +625,7 @@ bool test_keyword(Lexer* lexer, const char* keyword, TokenKind kind) {
 	return true;
 }
 
-static
-void parse_string(Lexer* lexer) {
+static void parse_string(Lexer* lexer) {
 	Token* token = lexer->head;
 	char* begin = lexer->cursor;
 	char* p = begin+1;
@@ -718,8 +699,7 @@ void parse_string(Lexer* lexer) {
 	lexer->cursor = p+1;
 }
 
-static
-bool is_whitespace(char c) {
+static bool is_whitespace(char c) {
 	switch (c) {
 		case ' ':
 		case '\t':
@@ -733,8 +713,7 @@ bool is_whitespace(char c) {
 	}
 }
 
-static
-void skip_whitespace(Lexer* lexer) {
+static void skip_whitespace(Lexer* lexer) {
 	Token* token = lexer->head;
 	char* p = lexer->cursor;
 	char* before = p;
@@ -767,8 +746,7 @@ void skip_whitespace(Lexer* lexer) {
 	lexer->cursor = p;
 }
 
-static
-TokenKind get_matching_enclosure_kind(TokenKind kind) {
+static TokenKind get_matching_enclosure_kind(TokenKind kind) {
 	switch (kind) {
 		case TOKEN_OPEN_PAREN:    return TOKEN_CLOSE_PAREN;
 		case TOKEN_OPEN_BRACE:    return TOKEN_CLOSE_BRACE;
@@ -780,8 +758,7 @@ TokenKind get_matching_enclosure_kind(TokenKind kind) {
 	}
 }
 
-static
-void lex(Module* module) {
+static void lex(Module* module) {
 	FileHandle32 file_handle = open_file(module->file, FILE_MODE_OPEN, FILE_ACCESS_FLAG_READ);
 	FileData file = load_file(file_handle, 16);
 	close_file(file_handle);

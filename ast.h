@@ -35,6 +35,8 @@ typedef enum ExpressionFlags ExpressionFlags;
 
 typedef union Ast Ast;
 
+#include "ir.h"
+
 enum AstKind {
 	AST_INVALID = 0,
 
@@ -187,6 +189,7 @@ struct Expression {
 	ExpressionFlags flags : 8;
 	TypeID type;
 	Ast* user;
+	V32 value;
 
 	union {
 		struct {

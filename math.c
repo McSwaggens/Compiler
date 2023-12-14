@@ -129,4 +129,6 @@ static s64 log10(u64 n) {
 
 static u64 digit_count_base10(u64 n) { return n ? log10(n) : 1; }
 
+static inline s64 abs(s64 n) { return n >= 0 ? n : -n; }
+
 #endif
