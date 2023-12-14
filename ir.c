@@ -4,13 +4,16 @@
 static Value value_table[1llu<<32llu];
 static V32 value_table_index_head;
 
+#define IR_PRELOAD_BEGIN -1
+#define IR_PRELOAD_END   32
+
 // -------------------------------------------------- //
 
 static void init_ir(void) {
 	value_table_index_head = 4;
-	*get_value(const_int(-1)) = (Value){ .const_int = -1, };
-	*get_value(const_int(0))  = (Value){ .const_int =  0, };
-	*get_value(const_int(1))  = (Value){ .const_int =  1, };
+	for (s64 i = IR_PRELOAD_BEGIN; i <= IR_PRELOAD_BEGIN; i++) {
+		*get_value(const_int(i)) = (Value){ .const_int = i };
+	}
 }
 
 static V32 make_value(void) {
@@ -36,12 +39,8 @@ struct ConstHashTableNode {
 static ConstHashTableNode* const_hash_table[CONST_HASH_TABLE_SIZE] = { 0 };
 
 static V32 const_int(u64 n) {
-	switch (n) {
-		case -1:
-		case 0:
-		case 1:
-			return n+1+1;
-		default: break;
+	if ((s64)n >= IR_PRELOAD_BEGIN && (s64)n <= IR_PRELOAD_END) {
+		return 1+n+abs(IR_PRELOAD_BEGIN);
 	}
 
 	ConstHashTableNode** ppnode = &const_hash_table[hash64(n) & CONST_HASH_TABLE_MASK];
