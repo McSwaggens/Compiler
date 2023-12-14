@@ -32,8 +32,8 @@ static u64 get_system_ram(void) {
 
 // ------------------------------------ //
 
-static u64 hash64(u64 n) {
-	return n * 21;
+static inline u64 hash64(u64 n) {
+	return n * 11400714819323198485llu; // (2^64)/((1+sqrt(5))/2)
 }
 
 // ------------------------------------ //
