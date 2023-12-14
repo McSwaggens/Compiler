@@ -715,7 +715,7 @@ void parse_string(Lexer* lexer) {
 		token->string = (String){ s, result_numchars };
 	}
 
-	lexer->cursor = p;
+	lexer->cursor = p+1;
 }
 
 static
