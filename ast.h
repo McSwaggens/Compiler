@@ -181,7 +181,8 @@ struct Function {
 };
 
 enum ExpressionFlags {
-	EXPR_FLAG_CONSTANT = 0x01,
+	EXPR_FLAG_COMPLETE = 0x01,
+	EXPR_FLAG_CONSTANT = 0x02,
 };
 
 struct Expression {

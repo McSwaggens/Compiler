@@ -35,6 +35,7 @@ struct Relation {
 
 struct Value {
 	u16 relation_count;
+	u16 relation_capacity;
 	Relation* relations;
 
 	union {
@@ -45,6 +46,7 @@ struct Value {
 };
 
 static void init_ir(void);
+static void relate(V32 v, Relation rel);
 static V32 make_value(void);
 static inline Value* get_value(V32 id);
 

@@ -1,3 +1,5 @@
 Foo():
-	x : int = Sin(3.14159)
+	a :  int = 0
+	b :  int = 1
+	p : *int = *a
 

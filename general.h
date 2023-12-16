@@ -68,6 +68,7 @@ typedef char byte;
 // ------------------------------------ //
 
 static void copy(void* to, const void* from, u64 size) { __builtin_memcpy(to, from, size); }
+static void move(void* to, const void* from, u64 size) { __builtin_memmove(to, from, size); }
 static void zero(void* p, u64 size) { __builtin_memset(p, 0, size); }
 static bool compare(const void* a, const void* b, u64 count) { return __builtin_memcmp(a, b, count) == 0; }
 

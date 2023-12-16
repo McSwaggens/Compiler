@@ -16,6 +16,73 @@ static void init_ir(void) {
 	}
 }
 
+static inline s32 compare_relation(Relation a, Relation b) {
+	if (a.kind < b.kind) return -1;
+	if (a.kind > b.kind) return  1;
+
+	if (a.key < b.key) return -1;
+	if (a.key > b.key) return  1;
+
+	if (a.to < b.to) return -1;
+	if (a.to > b.to) return  1;
+
+	if (a.v < b.v) return -1;
+	if (a.v > b.v) return  1;
+
+	return 0;
+}
+
+static bool find_relation(Value* value, Relation rel, u16* out_index) {
+	u32 d = value->relation_count >> 1;
+	u32 index = d;
+
+	for (u32 i = 0; i < boi(value->relation_count); i++) {
+		assert(index < value->relation_count);
+		assert(d);
+
+		s32 cmp = compare_relation(value->relations[index], rel);
+
+		if (!cmp) {
+			*out_index = index;
+			return true;
+		}
+
+		d >>= 1;
+
+		if (cmp < 0) index -= d;
+		if (cmp > 0) index += d;
+	}
+
+	*out_index = index;
+	return false;
+}
+
+static void relate(V32 vid, Relation rel) {
+	Value* value = get_value(vid);
+
+	u16 insertion_index = 0;
+	if (find_relation(value, rel, &insertion_index))
+		return;
+
+	if (value->relation_count == value->relation_capacity) {
+		value->relation_capacity = next_pow2(value->relation_capacity|15);
+		value->relations = realloc(
+			value->relations,
+			sizeof(Relation)*value->relation_count,
+			sizeof(Relation)*value->relation_capacity
+		);
+	}
+
+	move(
+		value->relations+insertion_index+1,
+		value->relations+insertion_index,
+		sizeof(Relation)*(value->relation_count-insertion_index)
+	);
+
+	value->relations[insertion_index] = rel;
+	value->relation_count++;
+}
+
 static V32 make_value(void) {
 	return value_table_index_head++;
 }
