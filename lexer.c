@@ -1046,8 +1046,9 @@ static void lex(Module* module) {
 					);
 				}
 
+				Token* prev = open_token->closure;
 				open_token->closure = lexer.head;
-				open_token = open_token->closure;
+				open_token = prev;
 			} break;
 
 			case '"': {
