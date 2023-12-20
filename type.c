@@ -245,6 +245,13 @@ static TypeID get_subtype(TypeID type) {
 	return p->subtype;
 }
 
+static TypeID remove_ref(TypeID type) {
+	if (!is_ref(type))
+		return type;
+
+	return get_subtype(type);
+}
+
 static bool is_int(TypeID type) {
 	return is_signed(type) || is_unsigned(type);
 }
@@ -263,6 +270,10 @@ static bool is_float(TypeID type) {
 
 static bool is_ref(TypeID type) {
 	return get_type_kind(type) == TYPE_KIND_REF;
+}
+
+static bool is_ptr(TypeID type) {
+	return get_type_kind(type) == TYPE_KIND_PTR;
 }
 
 static bool is_specifier(TypeID type) {

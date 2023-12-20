@@ -98,11 +98,13 @@ static TypeID get_func_type(TypeID input, TypeID output);
 static TypeID get_tuple_type(TypeID* types, u64 count);
 static TypeID get_fixed_type(TypeID typeid, u64 length);
 static TypeID get_subtype(TypeID type);
+static TypeID remove_ref(TypeID type);
 static bool is_int(TypeID type);
 static bool is_unsigned(TypeID type);
 static bool is_signed(TypeID type);
 static bool is_float(TypeID type);
 static bool is_ref(TypeID type);
+static bool is_ptr(TypeID type);
 static bool is_specifier(TypeID type);
 #endif // TYPE_H
 
