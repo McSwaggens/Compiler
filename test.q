@@ -1,5 +1,5 @@
-Foo():
-	a :  int = 0
-	b :  int = 1
-	p : *int = *a
+Foo(U: type_id, V: type_id) -> U:
+	a : U = 1
+	b : V = 2
+	c := a + b
 

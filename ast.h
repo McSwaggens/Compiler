@@ -22,6 +22,7 @@ typedef struct Enum         Enum;
 typedef struct EnumField    EnumField;
 typedef struct Match        Match;
 typedef struct MatchGroup   MatchGroup;
+typedef struct AstUsers     AstUsers;
 
 typedef enum AstKind        AstKind;
 typedef enum StatementKind  StatementKind;
@@ -32,10 +33,26 @@ typedef enum ClauseKind     ClauseKind;
 typedef enum ScopeFlags      ScopeFlags;
 typedef enum VariableFlags   VariableFlags;
 typedef enum ExpressionFlags ExpressionFlags;
+typedef enum AstFlags        AstFlags;
 
 typedef union Ast Ast;
 
 #include "ir.h"
+
+struct AstUsers {
+	union { union Ast* single; union Ast** users; };
+	u16 count;
+};
+
+#define AST_HEADER struct { AstKind kind:8; AstFlags flags:8; AstUsers users; }
+
+enum AstFlags {
+	AST_FLAG_COMPLETE     = 0x01,
+	AST_FLAG_CONSTANT     = 0x02,
+	AST_FLAG_GLOBAL       = 0x04,
+	AST_FLAG_VAR_CONSTANT = 0x08,
+	AST_FLAG_VAR_PARAM    = 0x10,
+};
 
 enum AstKind {
 	AST_INVALID = 0,
@@ -121,27 +138,27 @@ enum AstKind {
 };
 
 struct StructField {
-	AstKind kind : 8;
+	AST_HEADER;
 	Token* name;
 	// TypeID type;
 	Expression* type_expr;
 };
 
 struct Struct {
-	AstKind kind : 8;
+	AST_HEADER;
 	Token* name;
 	StructField* fields;
 	u64 field_count;
 };
 
 struct EnumField {
-	AstKind kind : 8;
+	AST_HEADER;
 	Token* name;
 	Expression* value;
 };
 
 struct Enum {
-	AstKind kind : 8;
+	AST_HEADER;
 	Token* name;
 	Expression* type_expr;
 	EnumField* fields;
@@ -170,24 +187,18 @@ struct Code {
 };
 
 struct Function {
-	AstKind kind : 8;
+	AST_HEADER;
+	struct { V32* data; u16 count; } contexts;
 	Token* name;
 	Variable* params;
 	u64 param_count;
 	Expression* return_type_expr;
 	TypeID type;
 	Code code;
-	struct Procedure* proc;
-};
-
-enum ExpressionFlags {
-	EXPR_FLAG_COMPLETE = 0x01,
-	EXPR_FLAG_CONSTANT = 0x02,
 };
 
 struct Expression {
-	AstKind kind : 8;
-	ExpressionFlags flags : 8;
+	AST_HEADER;
 	TypeID type;
 	Ast* user;
 	V32 value;
@@ -287,7 +298,7 @@ struct Match {
 };
 
 struct Branch {
-	AstKind kind : 8;
+	AST_HEADER;
 	Code code;
 	BranchKind branch_kind;
 	ClauseKind clause_kind;
@@ -300,7 +311,7 @@ struct Branch {
 };
 
 struct ControlFlow {
-	AstKind kind : 8;
+	AST_HEADER;
 	Branch* branches;
 	u64 branch_count;
 };
@@ -315,16 +326,8 @@ struct Break {
 struct Continue {
 };
 
-enum VariableFlags {
-	VAR_VARIABLE = 0x1,
-	VAR_CONSTANT = 0x2,
-	VAR_GLOBAL   = 0x8,
-	VAR_SCANNED = 0x10,
-};
-
 struct Variable {
-	AstKind kind : 8;
-	VariableFlags flags;
+	AST_HEADER;
 	Token* name;
 	Expression* type_expr;
 	Expression* init_expr;
@@ -333,7 +336,7 @@ struct Variable {
 };
 
 struct Statement {
-	AstKind kind : 8;
+	AST_HEADER;
 
 	union {
 		Assignment assign;
@@ -368,7 +371,7 @@ struct Module {
 };
 
 union Ast {
-	AstKind     kind : 8;
+	AST_HEADER;
 	Function    func;
 	Expression  expr;
 	Statement   statement;

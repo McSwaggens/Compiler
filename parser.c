@@ -433,8 +433,8 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 	switch (token->kind) {
 		case TOKEN_IDENTIFIER_CONSTANT: {
 			*left = (Expression){
-				.kind = AST_EXPR_IDENTIFIER_CONSTANT,
-				.flags = EXPR_FLAG_CONSTANT,
+				.kind  = AST_EXPR_IDENTIFIER_CONSTANT,
+				.flags = AST_FLAG_CONSTANT,
 				.term.token = token,
 			};
 			token++;
@@ -443,7 +443,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 		case TOKEN_IDENTIFIER_FORMAL: {
 			*left = (Expression){
 				.kind = AST_EXPR_IDENTIFIER_FORMAL,
-				.flags = EXPR_FLAG_CONSTANT | EXPR_FLAG_COMPLETE,
+				.flags = AST_FLAG_CONSTANT | AST_FLAG_COMPLETE,
 				.term.token = token,
 			};
 			token++;
@@ -460,7 +460,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 		case TOKEN_TRUE: {
 			*left = (Expression){
 				.kind = AST_EXPR_TRUE,
-				.flags = EXPR_FLAG_CONSTANT | EXPR_FLAG_COMPLETE,
+				.flags = AST_FLAG_CONSTANT | AST_FLAG_COMPLETE,
 				.type  = TYPE_BOOL,
 				.value = const_int(1),
 			};
@@ -470,7 +470,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 		case TOKEN_FALSE: {
 			*left = (Expression){
 				.kind  = AST_EXPR_FALSE,
-				.flags = EXPR_FLAG_CONSTANT | EXPR_FLAG_COMPLETE,
+				.flags = AST_FLAG_CONSTANT | AST_FLAG_COMPLETE,
 				.type  = TYPE_BOOL,
 				.value = const_int(0),
 			};
@@ -480,7 +480,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 		case TOKEN_NULL: {
 			*left = (Expression){
 				.kind  = AST_EXPR_NULL,
-				.flags = EXPR_FLAG_CONSTANT | EXPR_FLAG_COMPLETE,
+				.flags = AST_FLAG_CONSTANT | AST_FLAG_COMPLETE,
 				.type  = get_ptr_type(TYPE_BYTE),
 				.value = const_int(0),
 			};
@@ -497,7 +497,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 		case TOKEN_LITERAL_UINT64: {
 			*left = (Expression){
 				.kind  = AST_EXPR_LITERAL,
-				.flags = EXPR_FLAG_CONSTANT | EXPR_FLAG_COMPLETE,
+				.flags = AST_FLAG_CONSTANT | AST_FLAG_COMPLETE,
 				.type  = lut[token->kind],
 				.value = const_int(token->i),
 				.term.token = token,
@@ -508,7 +508,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 		case TOKEN_LITERAL_FLOAT32: {
 			*left = (Expression){
 				.kind  = AST_EXPR_LITERAL,
-				.flags = EXPR_FLAG_CONSTANT | EXPR_FLAG_COMPLETE,
+				.flags = AST_FLAG_CONSTANT | AST_FLAG_COMPLETE,
 				.type  = lut[token->kind],
 				.value = const_f32(token->f),
 				.term.token = token,
@@ -519,7 +519,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 		case TOKEN_LITERAL_FLOAT64: {
 			*left = (Expression){
 				.kind  = AST_EXPR_LITERAL,
-				.flags = EXPR_FLAG_CONSTANT | EXPR_FLAG_COMPLETE,
+				.flags = AST_FLAG_CONSTANT | AST_FLAG_COMPLETE,
 				.type  = lut[token->kind],
 				.value = const_f64(token->d),
 				.term.token = token,
@@ -530,7 +530,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 		case TOKEN_LITERAL_STRING: {
 			*left = (Expression){
 				.kind  = AST_EXPR_LITERAL,
-				.flags = EXPR_FLAG_CONSTANT | EXPR_FLAG_COMPLETE,
+				.flags = AST_FLAG_CONSTANT | AST_FLAG_COMPLETE,
 				.type  = get_fixed_type(TYPE_INT8, token->string.length),
 				.value = 0,
 				.term.token = token,
@@ -555,7 +555,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 		case TOKEN_TYPE_ID: {
 			*left = (Expression){
 				.kind = AST_EXPR_BASETYPE_PRIMITIVE,
-				.flags = EXPR_FLAG_CONSTANT | EXPR_FLAG_COMPLETE,
+				.flags = AST_FLAG_CONSTANT | AST_FLAG_COMPLETE,
 				.type = TYPE_TYPEID,
 				.value = const_int(lut[token->kind]),
 				.term.token = token,
@@ -962,14 +962,15 @@ static Token* parse_expression(Module* module, Token* token, Indent16 indent, bo
 
 static Token* parse_variable_declaration(Module* module, Token* token, Indent16 indent, Variable* out) {
 	assert(is_identifier(token->kind));
+	// @Note: out->flags is populated
 
 	switch (token->kind) {
-		case TOKEN_IDENTIFIER_CONSTANT: out->flags |= VAR_CONSTANT; break;
-		case TOKEN_IDENTIFIER_VARIABLE: out->flags |= VAR_VARIABLE; break;
+		case TOKEN_IDENTIFIER_CONSTANT: out->flags |= AST_FLAG_VAR_CONSTANT; break;
+		case TOKEN_IDENTIFIER_VARIABLE: out->flags |= 0; break;
 		default: assert_unreachable();
 	}
 
-	bool is_const = (out->flags & VAR_CONSTANT);
+	bool is_const = (out->flags & AST_FLAG_VAR_CONSTANT);
 	out->name = token;
 	token++;
 
@@ -997,7 +998,7 @@ static Token* parse_variable_declaration(Module* module, Token* token, Indent16 
 		token = parse_expression(module, token, indent+1, false, &out->init_expr);
 	}
 
-	if (is_const && !out->init_expr)
+	if (is_const && !out->init_expr && !(out->flags & AST_FLAG_VAR_PARAM))
 		errort(token, "Constant declared without a value.\n");
 
 	return token;
@@ -1367,6 +1368,7 @@ static Token* parse_params(Module* module, Function* func, Token* token, Indent1
 			if (token->kind == TOKEN_EOF)
 				errort(token, "Missing ')'\n");
 
+			param->flags = AST_FLAG_VAR_PARAM;
 			token = parse_variable_declaration(module, token, indent+1, param);
 			param++;
 
