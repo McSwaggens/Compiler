@@ -387,7 +387,8 @@ static void write_expression(OutputBuffer* buffer, Expression* expr) {
 			write_cstring(buffer, "(");
 			write_expression(buffer, expr->unary.sub);
 			write_cstring(buffer, " IMPLICIT_CAST ");
-			write_type(buffer, expr->type);
+			write_cstring(buffer, " TODO_TYPE_VALUE_PRINTING");
+			// write_type(buffer, expr->type);
 			write_cstring(buffer, ")");
 
 		case AST_EXPR_UNARY_PTR:
@@ -919,5 +920,80 @@ static void errort(Token* token, const char* format, ...) {
 	__builtin_va_end(args);
 	flush_output_buffer(&standard_output_buffer);
 	exit_program();
+}
+
+static void write_fill_char(OutputBuffer* buffer, char c, u64 n) {
+	while (n--)
+		write_char(buffer, c);
+}
+
+static void errorex(Expression* expr, u64 extra_lines, const char* format, ...) {
+	OutputBuffer* buffer = &standard_output_buffer;
+
+	Module* module = find_module(expr->begin);
+
+	TokenAux* aux_begin = get_aux(module, expr->begin);
+	TokenAux* aux_end   = get_aux(module, expr->end);
+
+	u64 line_begin = aux_begin->pos.line;
+	u64 line_end   = aux_end[-1].pos.line+1;
+
+	assert(line_begin < line_end);
+
+	u64 expr_lines = line_end-line_begin;
+	u64 lines_till_eof = module->line_count - line_begin;
+	u64 lines = min_u64(lines_till_eof, expr_lines + extra_lines);
+
+	line_end = line_begin + lines;
+
+	Position pos = aux_begin->pos;
+
+	print("%:%:%: error: ",
+		arg_string(module->file),
+		arg_u64(pos.line+1),
+		arg_u64(pos.column+1)
+	);
+
+	__builtin_va_list args;
+	__builtin_va_start(args, format);
+	internal_print(buffer, format, args);
+	__builtin_va_end(args);
+
+	// Filter out blank lines
+	for (u64 i = line_end-1; i > line_begin+1; i--) {
+		Line* line = module->lines+i;
+		if (line->token_begin != line->token_end) {
+			break;
+		}
+
+		line_end--;
+	}
+
+	for (u64 i = line_begin; i < line_end; i++) {
+		Line* line = &module->lines[i];
+		write_string(buffer, line->string);
+
+		if (i == line_begin && expr_lines == 1) {
+
+			write_fill_char(buffer, '\t', expr->begin->indent);
+			write_fill_char(buffer, ' ', aux_begin->pos.column-expr->begin->indent);
+			write_char(buffer, '^');
+
+			u64 width = (aux_end[-1].pos.column - aux_begin->pos.column) + aux_end[-1].width;
+			write_fill_char(buffer, '~', width-1);
+			write_char(buffer, '\n');
+		}
+	}
+
+	flush_output_buffer(&standard_output_buffer);
+	exit_program();
+}
+
+static void errore(Expression* expr, const char* format, ...) {
+	OutputBuffer* buffer = &standard_output_buffer;
+	__builtin_va_list args;
+	__builtin_va_start(args, format);
+	errorex(expr, 3, format, args);
+	__builtin_va_end(args);
 }
 

@@ -166,7 +166,9 @@ struct Enum {
 };
 
 enum ScopeFlags {
-	IS_CODE_FLAG = 0x01,
+	SCOPE_GLOBAL      = 0x01,
+	SCOPE_CODE        = 0x02,
+	SCOPE_INSIDE_LOOP = 0x04,
 };
 
 struct Scope {
@@ -199,7 +201,7 @@ struct Function {
 
 struct Expression {
 	AST_HEADER;
-	TypeID type;
+	V32 type_value;
 	Ast* user;
 	V32 value;
 
@@ -357,6 +359,9 @@ struct Module {
 	Token* tokens;
 	Token* tokens_end;
 	TokenAux* auxs;
+
+	Line* lines;
+	u64   line_count;
 
 	Function* functions;
 	u64 function_count;
