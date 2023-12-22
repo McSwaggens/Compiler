@@ -4,6 +4,8 @@ typedef struct Lexer {
 	char* cursor;
 	Token* head;
 	Token* tokens_begin;
+	Token* token_line_begin;
+	Line* lines;
 	TokenAux* aux_head;
 	TokenAux* aux_begin;
 	char* end;
@@ -721,6 +723,12 @@ static void skip_whitespace(Lexer* lexer) {
 
 	while (is_whitespace(*p) || compare(p, "//", 2)) {
 		if (*p == '\n') {
+			lexer->lines[lexer->line] = (Line) {
+				.token_begin = lexer->token_line_begin,
+				.token_end   = lexer->head,
+				.string = (String){ .data = lexer->line_begin, .length = (p+1)-lexer->line_begin },
+			};
+
 			lexer->line_begin = p+1;
 			lexer->line++;
 			lexer->indent = 0;
@@ -771,27 +779,31 @@ static void lex(Module* module) {
 	// u64 start_timer = read_timestamp_counter();
 
 	u64 maxlen = file.size + 1;
-	Token*    tokens = alloc(maxlen * (sizeof(Token)+sizeof(TokenAux)));
+	Token*    tokens = alloc(maxlen * (sizeof(Token)+sizeof(TokenAux)+sizeof(Line)));
 	TokenAux* auxs   = (TokenAux*)(tokens+maxlen);
+	Line* lines = (Line*)(auxs+maxlen);
 
-	module->tokens = tokens;
+	module->tokens     = tokens;
 	module->tokens_end = tokens+maxlen;
-	module->auxs   = auxs;
+	module->auxs       = auxs;
+	module->lines      = lines;
 
 	Token* open_token = null;
 
 	Lexer lexer = {
-		.cursor       = file.data,
-		.head         = tokens,
-		.tokens_begin = tokens,
-		.aux_head     = auxs,
-		.aux_begin    = auxs,
-		.end          = file.data + file.size,
-		.indent       = 0,
-		.line         = 0,
-		.line_begin   = file.data,
-		.file         = module->file,
-		.module       = module,
+		.cursor           = file.data,
+		.head             = tokens,
+		.tokens_begin     = tokens,
+		.token_line_begin = tokens,
+		.aux_head         = auxs,
+		.aux_begin        = auxs,
+		.end              = file.data + file.size,
+		.indent           = 0,
+		.line             = 0,
+		.lines            = lines,
+		.line_begin       = file.data,
+		.file             = module->file,
+		.module           = module,
 	};
 
 	while (*lexer.cursor == '\t') lexer.cursor++, lexer.indent++;
@@ -802,6 +814,7 @@ static void lex(Module* module) {
 		if (lexer.cursor >= lexer.end) break;
 
 		lexer.aux_head->pos = make_pos(&lexer, lexer.cursor);
+		char* pbegin_of_token = lexer.cursor;
 
 		switch (*lexer.cursor) {
 			case 'a': {
@@ -838,7 +851,7 @@ static void lex(Module* module) {
 				if (test_keyword(&lexer, "for",     TOKEN_FOR))     break;
 				if (test_keyword(&lexer, "false",   TOKEN_FALSE))   break;
 				if (test_keyword(&lexer, "float32", TOKEN_FLOAT32)) break;
-				if (test_keyword(&lexer, "f64", TOKEN_FLOAT64)) break;
+				if (test_keyword(&lexer, "float64", TOKEN_FLOAT64)) break;
 				goto GOTO_LEXER_COULD_BE_HEXADECIMAL_OR_IDENTIFIER;
 			}
 
@@ -1060,9 +1073,18 @@ static void lex(Module* module) {
 				error(module->file, make_pos(&lexer, lexer.cursor), "Unexepected character: '%'\n", arg_char(*lexer.cursor));
 		}
 
+		lexer.aux_head->width = lexer.cursor - pbegin_of_token;
 		lexer.head++;
 		lexer.aux_head++;
 	}
+
+	lexer.lines[lexer.line++] = (Line){
+		.string = (String){ .data = lexer.line_begin , .length = lexer.cursor-lexer.line_begin },
+		.token_begin = lexer.token_line_begin,
+		.token_end   = lexer.head
+	};
+
+	module->line_count = lexer.line;
 
 	*lexer.head++ = (Token){
 		.kind = TOKEN_EOF,
@@ -1087,6 +1109,11 @@ static void lex(Module* module) {
 		open_token->closure = null;
 		open_token = next;
 	}
+
+	// for (u64 i = 0; i < lexer.line; i++) {
+	// 	Line* line = &lexer.lines[i];
+	// 	print("%: %", arg_u64(i), arg_string(line->string));
+	// }
 
 	// u64 end_timer = read_timestamp_counter();
 	// print("Lexer took % cycles.\n",

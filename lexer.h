@@ -3,9 +3,10 @@
 
 typedef enum TokenKind TokenKind;
 typedef union TokenAuxilaryInfo TokenAuxilaryInfo;
-typedef struct Token Token;
+typedef struct Token    Token;
 typedef struct Position Position;
 typedef struct TokenAux TokenAux;
+typedef struct Line     Line;
 typedef u16 Indent16;
 typedef u8  TokenFlags8;
 
@@ -117,9 +118,15 @@ enum TokenKind {
 	TOKEN_PIKE_EQUAL,
 };
 
+struct Line {
+	String string;
+	Token* token_begin;
+	Token* token_end;
+};
+
 struct Position {
-	u64 line;
-	u64 column;
+	u64 line;   // Zero indexed
+	u64 column; // Zero indexed
 };
 
 enum {
@@ -150,6 +157,7 @@ struct Token {
 // TokenAux is for cold data only.
 struct TokenAux {
 	Position pos; // Only used when we're printing an error.
+	u64 width;
 };
 
 static inline
