@@ -208,8 +208,8 @@ static u8 correct_binary_precedence(u8 precedence, Token* token) {
 	return precedence;
 }
 
-static Token* parse_code(Module* module, Token* token, Indent16 indent, Code* code);
-static Token* parse_expression(Module* module, Token* token, Indent16 indent, bool allow_equals, Expression** out); 
+static Token* parse_code(Module* module, Scope* parent_scope, Token* token, Indent16 indent, Code* code);
+static Token* parse_expression(Module* module, Scope* scope, Token* token, Indent16 indent, bool allow_equals, Expression** out); 
 
 static Token* parse_struct(Module* module, Token* token, Indent16 indent) {
 	assert(token->kind == TOKEN_STRUCT);
@@ -253,7 +253,7 @@ static Token* parse_struct(Module* module, Token* token, Indent16 indent) {
 		if (!is_expression_starter(token->kind))
 			errort(token, "Expected type after ':', not: %\n", arg_token(token));
 
-		token = parse_expression(module, token, indent+2, true, &field.type_expr);
+		token = parse_expression(module, &module->scope, token, indent+2, true, &field.type_expr);
 
 		ast->fields = realloc(ast->fields, sizeof(StructField)*(ast->field_count), sizeof(StructField)*(ast->field_count+1));
 		ast->fields[ast->field_count++] = field;
@@ -296,7 +296,7 @@ static Token* parse_enum(Module* module, Token* token, Indent16 indent) {
 			errort(token, "Expected type after '->', not: %\n", arg_token(token));
 
 		check_indent(token, indent+1);
-		token = parse_expression(module, token, indent+1, true, &ast->type_expr);
+		token = parse_expression(module, &module->scope, token, indent+1, true, &ast->type_expr);
 	}
 
 	if (token->kind != TOKEN_COLON)
@@ -324,7 +324,7 @@ static Token* parse_enum(Module* module, Token* token, Indent16 indent) {
 			if (!is_expression_starter(token->kind))
 				errort(token, "Expected expression after '=', not: %\n", arg_token(token));
 
-			token = parse_expression(module, token, indent+2, true, &field.value);
+			token = parse_expression(module, &module->scope, token, indent+2, true, &field.value);
 		}
 
 		ast->fields = realloc(ast->fields, sizeof(EnumField)*(ast->field_count), sizeof(EnumField)*(ast->field_count+1));
@@ -350,6 +350,7 @@ typedef struct IndentHelper {
 	Indent16 indent;
 	bool locked;
 	s8 adjustment;
+	Scope* scope;
 } IndentHelper;
 
 static inline void ih_enter(IndentHelper* helper) {
@@ -395,6 +396,34 @@ static bool ih_test(Token* token, IndentHelper* helper, s32 adjustment) {
 	return token->indent == expected_indent || token->indent == expected_indent-1;
 }
 
+typedef struct ExpressionTable ExpressionTable;
+
+struct ExpressionTable {
+	Expression** expressions;
+	u32 count;
+	u32 capacity;
+};
+
+static ExpressionTable initial_terms = { 0 };
+static ExpressionTable unknown_vars = { 0 };
+
+static void exprtable_add(ExpressionTable* table, Expression* expr) {
+	if (table->count == table->capacity) {
+		table->capacity = next_pow2(table->capacity|4095);
+		table->expressions = realloc(
+			table->expressions,
+			table->count*sizeof(*table->expressions),
+			table->capacity*sizeof(*table->expressions)
+		);
+	}
+
+	table->expressions[table->count++] = expr;
+}
+
+static Variable* find_var_partial(Scope* scope, String name) {
+	return null;
+}
+
 static Token* internal_parse_expression(Module* module, Token* token, bool allow_equals, u8 parent_precedence, IndentHelper* helper, Expression** out) {
 	// Make sure to call ih_check before internal_parse_expression
 	Expression* left = alloc_expression();
@@ -437,6 +466,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 				.flags = AST_FLAG_CONSTANT,
 				.term.token = token,
 			};
+			exprtable_add(&initial_terms, left);
 			token++;
 		} break;
 
@@ -446,6 +476,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 				.flags = AST_FLAG_CONSTANT | AST_FLAG_COMPLETE,
 				.term.token = token,
 			};
+			exprtable_add(&initial_terms, left);
 			token++;
 		} break;
 
@@ -454,6 +485,13 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 				.kind = AST_EXPR_IDENTIFIER_VARIABLE,
 				.term.token = token,
 			};
+
+			Variable* var = find_var_partial(helper->scope, token->string);
+
+			if (!var) {
+				exprtable_add(&unknown_vars, left);
+			}
+
 			token++;
 		} break;
 
@@ -461,9 +499,10 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 			*left = (Expression){
 				.kind = AST_EXPR_TRUE,
 				.flags = AST_FLAG_CONSTANT | AST_FLAG_COMPLETE,
-				.type  = TYPE_BOOL,
+				.type_value = const_int(const_int(TYPE_BOOL)),
 				.value = const_int(1),
 			};
+			exprtable_add(&initial_terms, left);
 			token++;
 		} break;
 
@@ -471,9 +510,10 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 			*left = (Expression){
 				.kind  = AST_EXPR_FALSE,
 				.flags = AST_FLAG_CONSTANT | AST_FLAG_COMPLETE,
-				.type  = TYPE_BOOL,
+				.type_value = const_int(TYPE_BOOL),
 				.value = const_int(0),
 			};
+			exprtable_add(&initial_terms, left);
 			token++;
 		} break;
 
@@ -481,9 +521,10 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 			*left = (Expression){
 				.kind  = AST_EXPR_NULL,
 				.flags = AST_FLAG_CONSTANT | AST_FLAG_COMPLETE,
-				.type  = get_ptr_type(TYPE_BYTE),
+				.type_value = const_int(get_ptr_type(TYPE_BYTE)),
 				.value = const_int(0),
 			};
+			exprtable_add(&initial_terms, left);
 			token++;
 		} break;
 
@@ -498,10 +539,11 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 			*left = (Expression){
 				.kind  = AST_EXPR_LITERAL,
 				.flags = AST_FLAG_CONSTANT | AST_FLAG_COMPLETE,
-				.type  = lut[token->kind],
+				.type_value = const_int(lut[token->kind]),
 				.value = const_int(token->i),
 				.term.token = token,
 			};
+			exprtable_add(&initial_terms, left);
 			token++;
 		} break;
 
@@ -509,10 +551,11 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 			*left = (Expression){
 				.kind  = AST_EXPR_LITERAL,
 				.flags = AST_FLAG_CONSTANT | AST_FLAG_COMPLETE,
-				.type  = lut[token->kind],
+				.type_value = const_int(lut[token->kind]),
 				.value = const_f32(token->f),
 				.term.token = token,
 			};
+			exprtable_add(&initial_terms, left);
 			token++;
 		} break;
 
@@ -520,10 +563,11 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 			*left = (Expression){
 				.kind  = AST_EXPR_LITERAL,
 				.flags = AST_FLAG_CONSTANT | AST_FLAG_COMPLETE,
-				.type  = lut[token->kind],
+				.type_value = const_int(lut[token->kind]),
 				.value = const_f64(token->d),
 				.term.token = token,
 			};
+			exprtable_add(&initial_terms, left);
 			token++;
 		} break;
 
@@ -531,10 +575,11 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 			*left = (Expression){
 				.kind  = AST_EXPR_LITERAL,
 				.flags = AST_FLAG_CONSTANT | AST_FLAG_COMPLETE,
-				.type  = get_fixed_type(TYPE_INT8, token->string.length),
+				.type_value = const_int(get_fixed_type(TYPE_INT8, token->string.length)),
 				.value = 0,
 				.term.token = token,
 			};
+			exprtable_add(&initial_terms, left);
 			token++;
 		} break;
 
@@ -556,11 +601,11 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 			*left = (Expression){
 				.kind = AST_EXPR_BASETYPE_PRIMITIVE,
 				.flags = AST_FLAG_CONSTANT | AST_FLAG_COMPLETE,
-				.type = TYPE_TYPEID,
+				.type_value = const_int(TYPE_TYPEID),
 				.value = const_int(lut[token->kind]),
 				.term.token = token,
 			};
-
+			exprtable_add(&initial_terms, left);
 			token++;
 		} break;
 
@@ -938,10 +983,11 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 	}
 
 	*out = left;
+
 	return token;
 }
 
-static Token* parse_expression(Module* module, Token* token, Indent16 indent, bool allow_equals, Expression** out) {
+static Token* parse_expression(Module* module, Scope* scope, Token* token, Indent16 indent, bool allow_equals, Expression** out) {
 	// if (token->kind == TOKEN_EOF)
 	// 	return token;
 
@@ -952,6 +998,7 @@ static Token* parse_expression(Module* module, Token* token, Indent16 indent, bo
 		.adjustment = false,
 		.indent = indent,
 		.bracket_level = 0,
+		.scope = scope,
 	};
 
 	token = internal_parse_expression(module, token, allow_equals, 0, &helper, out);
@@ -960,14 +1007,12 @@ static Token* parse_expression(Module* module, Token* token, Indent16 indent, bo
 	return token;
 }
 
-static Token* parse_variable_declaration(Module* module, Token* token, Indent16 indent, Variable* out) {
+static Token* parse_variable_declaration(Module* module, Scope* scope, Token* token, Indent16 indent, Variable* out) {
 	assert(is_identifier(token->kind));
 	// @Note: out->flags is populated
 
-	switch (token->kind) {
-		case TOKEN_IDENTIFIER_CONSTANT: out->flags |= AST_FLAG_VAR_CONSTANT; break;
-		case TOKEN_IDENTIFIER_VARIABLE: out->flags |= 0; break;
-		default: assert_unreachable();
+	if (token->kind == TOKEN_IDENTIFIER_CONSTANT) {
+		out->flags |= AST_FLAG_VAR_CONSTANT;
 	}
 
 	bool is_const = (out->flags & AST_FLAG_VAR_CONSTANT);
@@ -981,7 +1026,7 @@ static Token* parse_variable_declaration(Module* module, Token* token, Indent16 
 
 	if (is_expression_starter(token->kind)) {
 		check_indent(token, indent+1);
-		token = parse_expression(module, token, indent+1, false, &out->type_expr);
+		token = parse_expression(module, scope, token, indent+1, false, &out->type_expr);
 	}
 
 	if (!out->type_expr && token->kind != TOKEN_EQUAL)
@@ -995,7 +1040,7 @@ static Token* parse_variable_declaration(Module* module, Token* token, Indent16 
 			errort(token, "Expected expression after '='\n", arg_token(token));
 
 		check_indent(token, indent+1);
-		token = parse_expression(module, token, indent+1, false, &out->init_expr);
+		token = parse_expression(module, scope, token, indent+1, false, &out->init_expr);
 	}
 
 	if (is_const && !out->init_expr && !(out->flags & AST_FLAG_VAR_PARAM))
@@ -1004,7 +1049,7 @@ static Token* parse_variable_declaration(Module* module, Token* token, Indent16 
 	return token;
 }
 
-static Token* parse_if(Module* module, Token* token, Indent16 indent, Branch* branch) {
+static Token* parse_if(Module* module, Code* code, Token* token, Indent16 indent, Branch* branch) {
 	branch->branch_kind = BRANCH_IF;
 	token++;
 
@@ -1013,19 +1058,19 @@ static Token* parse_if(Module* module, Token* token, Indent16 indent, Branch* br
 	}
 
 	check_indent(token, indent+1);
-	token = parse_expression(module, token, indent+1, true, &branch->cond);
+	token = parse_expression(module, &code->scope, token, indent+1, true, &branch->cond);
 
 	if (token->kind != TOKEN_COLON)
 		errort(token, "Expected ':', not: %\n", arg_token(token));
 	check_indent(token, indent+1);
 	token++; // :
 
-	token = parse_code(module, token, indent+1, &branch->code);
+	token = parse_code(module, &code->scope, token, indent+1, &branch->code);
 
 	return token;
 }
 
-static Token* parse_while(Module* module, Token* token, Indent16 indent, Branch* branch) {
+static Token* parse_while(Module* module, Code* code, Token* token, Indent16 indent, Branch* branch) {
 	branch->branch_kind = BRANCH_WHILE;
 	token++;
 
@@ -1033,19 +1078,19 @@ static Token* parse_while(Module* module, Token* token, Indent16 indent, Branch*
 		errort(token, "Missing condition expression in 'while' branch\n");
 
 	check_indent(token, indent+1);
-	token = parse_expression(module, token, indent+1, true, &branch->cond);
+	token = parse_expression(module, &code->scope, token, indent+1, true, &branch->cond);
 
 	if (token->kind != TOKEN_COLON)
 		errort(token, "Expected ':', not: '%'\n", arg_token(token));
 	check_indent(token, indent+1);
 	token++; // :
 
-	token = parse_code(module, token, indent+1, &branch->code);
+	token = parse_code(module, &code->scope, token, indent+1, &branch->code);
 
 	return token;
 }
 
-static Token* parse_for(Module* module, Token* token, Indent16 indent, Branch* branch) {
+static Token* parse_for(Module* module, Code* code, Token* token, Indent16 indent, Branch* branch) {
 	branch->branch_kind = BRANCH_FOR;
 	token++;
 
@@ -1055,7 +1100,7 @@ static Token* parse_for(Module* module, Token* token, Indent16 indent, Branch* b
 	check_indent(token, indent+1);
 
 	branch->var = stack_alloc(sizeof(Variable));
-	token = parse_variable_declaration(module, token, indent+1, branch->var);
+	token = parse_variable_declaration(module, &code->scope, token, indent+1, branch->var);
 
 	if (token->kind != TOKEN_COMMA)
 		errort(token, "Expected ',' after initial expression, not: '%'\n", arg_token(token));
@@ -1066,7 +1111,7 @@ static Token* parse_for(Module* module, Token* token, Indent16 indent, Branch* b
 		errort(token, "Expected condition expression not: '%'\n", arg_token(token));
 
 	check_indent(token, indent+1);
-	token = parse_expression(module, token, indent+1, true, &branch->cond);
+	token = parse_expression(module, &code->scope, token, indent+1, true, &branch->cond);
 
 	if (token->kind == TOKEN_COMMA) {
 		token++;
@@ -1075,7 +1120,7 @@ static Token* parse_for(Module* module, Token* token, Indent16 indent, Branch* b
 			errort(token, "Expected expression after ','\n");
 
 		check_indent(token, indent+1);
-		token = parse_expression(module, token, indent+1, true, &branch->new);
+		token = parse_expression(module, &code->scope, token, indent+1, true, &branch->new);
 	}
 
 	if (token->kind != TOKEN_COLON)
@@ -1083,19 +1128,19 @@ static Token* parse_for(Module* module, Token* token, Indent16 indent, Branch* b
 	check_indent(token, indent+1);
 	token++; // :
 
-	token = parse_code(module, token, indent+1, &branch->code);
+	token = parse_code(module, &code->scope, token, indent+1, &branch->code);
 
 	return token;
 }
 
-static Token* parse_match(Module* module, Token* token, Indent16 indent, Branch* branch) {
+static Token* parse_match(Module* module, Code* code, Token* token, Indent16 indent, Branch* branch) {
 	branch->branch_kind = BRANCH_MATCH;
 	token++; // match
 
 	if (!is_expression_starter(token->kind))
 		errort(token, "Expected expression not: '%'\n", arg_token(token+1));
 
-	token = parse_expression(module, token, indent+1, true, &branch->cond);
+	token = parse_expression(module, &code->scope, token, indent+1, true, &branch->cond);
 
 	if (token->kind != TOKEN_COLON)
 		errort(token, "Expected ':', not: '%'\n", arg_token(token));
@@ -1117,7 +1162,7 @@ static Token* parse_match(Module* module, Token* token, Indent16 indent, Branch*
 			if (!is_correct_indent(token, indent+2))
 				errort(token, "Code missing for 'then' clause in match statement\n");
 
-			token = parse_code(module, token, indent+2, &branch->code);
+			token = parse_code(module, &code->scope, token, indent+2, &branch->code);
 		}
 		else {
 			if (token->kind == TOKEN_ELSE)
@@ -1128,7 +1173,7 @@ static Token* parse_match(Module* module, Token* token, Indent16 indent, Branch*
 					errort(token, "Expected match expression, not: %\n", arg_token(token));
 
 				Expression* expr = null;
-				token = parse_expression(module, token, indent+2, true, &expr);
+				token = parse_expression(module, &code->scope, token, indent+2, true, &expr);
 
 				group.exprs = realloc(group.exprs, sizeof(Expression*) * (group.expr_count), sizeof(Expression*) * (group.expr_count+1));
 				group.exprs[group.expr_count++] = expr;
@@ -1143,7 +1188,7 @@ static Token* parse_match(Module* module, Token* token, Indent16 indent, Branch*
 			if (token->kind != TOKEN_COLON)
 				errort(token, "Expected ':', not: %\n", arg_token(token));
 
-			token = parse_code(module, token+1, indent+2, &group.code);
+			token = parse_code(module, &code->scope, token+1, indent+2, &group.code);
 
 			realloc(branch->match.groups, branch->match.group_count+sizeof(MatchGroup), (branch->match.group_count+4)*sizeof(MatchGroup));
 			branch->match.groups[branch->match.group_count++] = group;
@@ -1170,13 +1215,13 @@ static Token* parse_branch(Module* module, Token* token, Indent16 indent, Branch
 	switch (token->kind) {
 		case TOKEN_COLON: {
 			branch->branch_kind = BRANCH_NAKED;
-			token = parse_code(module, token+1, indent+1, &branch->code);
+			token = parse_code(module, &branch->code.scope, token+1, indent+1, &branch->code);
 		} break;
 
-		case TOKEN_IF:    token = parse_if(module, token, indent, branch); break;
-		case TOKEN_WHILE: token = parse_while(module, token, indent, branch); break;
-		case TOKEN_FOR:   token = parse_for(module, token, indent, branch); break;
-		case TOKEN_MATCH: token = parse_match(module, token, indent, branch); break;
+		case TOKEN_IF:    token = parse_if(module,    &branch->code, token, indent, branch); break;
+		case TOKEN_WHILE: token = parse_while(module, &branch->code, token, indent, branch); break;
+		case TOKEN_FOR:   token = parse_for(module,   &branch->code, token, indent, branch); break;
+		case TOKEN_MATCH: token = parse_match(module, &branch->code, token, indent, branch); break;
 
 		default: {
 		} break;
@@ -1242,7 +1287,7 @@ static Token* parse_statement(Module* module, Token* token, Indent16 indent, Cod
 			token++;
 
 			if (is_expression_starter(token->kind) && is_correct_indent(token, indent+1))
-				token = parse_expression(module, token, indent+1, true, &statement.ret.expr);
+				token = parse_expression(module, &code->scope, token, indent+1, true, &statement.ret.expr);
 		} break;
 
 		case TOKEN_BREAK:
@@ -1263,7 +1308,7 @@ static Token* parse_statement(Module* module, Token* token, Indent16 indent, Cod
 			if (!is_expression_starter(token[1].kind) || !is_correct_indent(token+1, indent+1))
 				errort(token, is_inc ? "Expected expression after inc\n" : "Expected expression after dec\n");
 
-			token = parse_expression(module, token+1, indent+1, true, &statement.expr);
+			token = parse_expression(module, &code->scope, token+1, indent+1, true, &statement.expr);
 		} break;
 
 		case TOKEN_IF:
@@ -1284,7 +1329,7 @@ static Token* parse_statement(Module* module, Token* token, Indent16 indent, Cod
 			Variable* var = stack_alloc(sizeof(Variable));
 			zero(var, sizeof(Variable));
 			statement.var = var;
-			token = parse_variable_declaration(module, token, indent, var);
+			token = parse_variable_declaration(module, &code->scope, token, indent, var);
 			scope_push_var(&code->scope, var);
 		} break;
 
@@ -1294,7 +1339,7 @@ static Token* parse_statement(Module* module, Token* token, Indent16 indent, Cod
 				errort(token, "Unexpected token at start of statement: %\n", arg_token(token));
 
 			Expression* expr = null;
-			token = parse_expression(module, token, indent+1, false, &expr);
+			token = parse_expression(module, &code->scope, token, indent+1, false, &expr);
 
 			switch (token->kind) {
 				default:
@@ -1319,7 +1364,7 @@ static Token* parse_statement(Module* module, Token* token, Indent16 indent, Cod
 				statement.assign.left = expr;
 				check_indent(token,   indent+1);
 				check_indent(token+1, indent+1);
-				token = parse_expression(module, token+1, indent+1, true, &statement.assign.right);
+				token = parse_expression(module, &code->scope, token+1, indent+1, true, &statement.assign.right);
 			}
 		} break;
 	}
@@ -1336,7 +1381,9 @@ static Token* parse_statement(Module* module, Token* token, Indent16 indent, Cod
 	return token;
 }
 
-static Token* parse_code(Module* module, Token* token, Indent16 indent, Code* code) {
+static Token* parse_code(Module* module, Scope* parent_scope, Token* token, Indent16 indent, Code* code) {
+	code->scope.parent_scope = parent_scope;
+
 	if (token->indent > indent)
 		errort(token, "Invalid indent for statement\n");
 
@@ -1369,7 +1416,7 @@ static Token* parse_params(Module* module, Function* func, Token* token, Indent1
 				errort(token, "Missing ')'\n");
 
 			param->flags = AST_FLAG_VAR_PARAM;
-			token = parse_variable_declaration(module, token, indent+1, param);
+			token = parse_variable_declaration(module, &module->scope, token, indent+1, param);
 			param++;
 
 			if (token->kind == TOKEN_CLOSE_PAREN)
@@ -1401,7 +1448,7 @@ static Token* parse_function(Module* module, Token* token, Indent16 indent) {
 		check_indent(token, indent);
 		token++; // ->
 
-		token = parse_expression(module, token, indent+1, true, &func.return_type_expr);
+		token = parse_expression(module, &module->scope, token, indent+1, true, &func.return_type_expr);
 	}
 
 	if (token->kind != TOKEN_COLON)
@@ -1409,7 +1456,7 @@ static Token* parse_function(Module* module, Token* token, Indent16 indent) {
 	check_indent(token, indent);
 	token++; // :
 
-	token = parse_code(module, token, indent+1, &func.code);
+	token = parse_code(module, &module->scope, token, indent+1, &func.code);
 
 	// print("Parsed function: %\n", arg_token(func->name));
 	module->functions[module->function_count++] = func;
@@ -1441,7 +1488,7 @@ static void parse_module(Module* module) {
 			case TOKEN_IDENTIFIER_CONSTANT: {
 				Variable* var = stack_alloc(sizeof(Variable));
 				zero(var, sizeof(Variable));
-				token = parse_variable_declaration(module, token, 0, var);
+				token = parse_variable_declaration(module, &module->scope, token, 0, var);
 				scope_push_var(&module->scope, var);
 			} break;
 
@@ -1474,6 +1521,11 @@ static void parse_module(Module* module) {
 				);
 			}
 		}
+	}
+
+	for (u32 i = 0; i < unknown_vars.count; i++) {
+		Expression* expr = unknown_vars.expressions[i];
+		print("Finding terminal variable '%'\n", arg_string(expr->begin->string));
 	}
 }
 
