@@ -13,14 +13,23 @@ static inline Expression* alloc_expression(void) {
 static void scope_push_var(Scope* scope, Variable* var) {
 	if (scope->variable_count == scope->variable_capacity) {
 		scope->variable_capacity = next_pow2(scope->variable_capacity+7);
+
 		scope->variables = realloc(
 			scope->variables,
-			sizeof(Variable*)*scope->variable_count,
-			sizeof(Variable*)*scope->variable_capacity
+			scope->variable_count    * sizeof(Variable*),
+			scope->variable_capacity * sizeof(Variable*)
+		);
+
+		scope->var_names = realloc(
+			scope->var_names,
+			scope->variable_count    * sizeof(char*),
+			scope->variable_capacity * sizeof(char*)
 		);
 	}
 
-	scope->variables[scope->variable_count++] = var;
+	scope->variables[scope->variable_count] = var;
+	scope->var_names[scope->variable_count] = var->name->identifier.data;
+	scope->variable_count++;
 }
 
 static void push_statement(Code* code, Statement statement) {
@@ -396,32 +405,31 @@ static bool ih_test(Token* token, IndentHelper* helper, s32 adjustment) {
 	return token->indent == expected_indent || token->indent == expected_indent-1;
 }
 
-typedef struct ExpressionTable ExpressionTable;
-
-struct ExpressionTable {
-	Expression** expressions;
-	u32 count;
-	u32 capacity;
-};
-
-static ExpressionTable initial_terms = { 0 };
-static ExpressionTable unknown_vars = { 0 };
-
 static void exprtable_add(ExpressionTable* table, Expression* expr) {
 	if (table->count == table->capacity) {
 		table->capacity = next_pow2(table->capacity|4095);
 		table->expressions = realloc(
 			table->expressions,
-			table->count*sizeof(*table->expressions),
-			table->capacity*sizeof(*table->expressions)
+			table->count    * sizeof(*table->expressions),
+			table->capacity * sizeof(*table->expressions)
 		);
 	}
 
 	table->expressions[table->count++] = expr;
 }
 
-static Variable* find_var_partial(Scope* scope, String name) {
-	return null;
+static Variable* find_var(Scope* scope, String name, Scope** out_scope) {
+	*out_scope = scope;
+
+	if (!scope)
+		return null;
+
+	for (u32 i = 0; i < scope->variable_count; i++) {
+		if (scope->var_names[i] == name.data)
+			return scope->variables[i];
+	}
+
+	return find_var(scope->parent_scope, name, out_scope);
 }
 
 static Token* internal_parse_expression(Module* module, Token* token, bool allow_equals, u8 parent_precedence, IndentHelper* helper, Expression** out) {
@@ -466,7 +474,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 				.flags = AST_FLAG_CONSTANT,
 				.term.token = token,
 			};
-			exprtable_add(&initial_terms, left);
+			exprtable_add(&module->initial_terms, left);
 			token++;
 		} break;
 
@@ -476,7 +484,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 				.flags = AST_FLAG_CONSTANT | AST_FLAG_COMPLETE,
 				.term.token = token,
 			};
-			exprtable_add(&initial_terms, left);
+			exprtable_add(&module->initial_terms, left);
 			token++;
 		} break;
 
@@ -486,12 +494,15 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 				.term.token = token,
 			};
 
-			Variable* var = find_var_partial(helper->scope, token->string);
+			Scope* found_scope;
+			Variable* var = find_var(helper->scope, token->string, &found_scope);
+			left->term.var = var;
 
 			if (!var) {
-				exprtable_add(&unknown_vars, left);
+				exprtable_add(&module->unknown_vars, left);
 			}
 
+			exprtable_add(&module->initial_terms, left);
 			token++;
 		} break;
 
@@ -502,7 +513,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 				.type_value = const_int(const_int(TYPE_BOOL)),
 				.value = const_int(1),
 			};
-			exprtable_add(&initial_terms, left);
+			exprtable_add(&module->initial_terms, left);
 			token++;
 		} break;
 
@@ -513,7 +524,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 				.type_value = const_int(TYPE_BOOL),
 				.value = const_int(0),
 			};
-			exprtable_add(&initial_terms, left);
+			exprtable_add(&module->initial_terms, left);
 			token++;
 		} break;
 
@@ -524,7 +535,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 				.type_value = const_int(get_ptr_type(TYPE_BYTE)),
 				.value = const_int(0),
 			};
-			exprtable_add(&initial_terms, left);
+			exprtable_add(&module->initial_terms, left);
 			token++;
 		} break;
 
@@ -543,7 +554,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 				.value = const_int(token->i),
 				.term.token = token,
 			};
-			exprtable_add(&initial_terms, left);
+			exprtable_add(&module->initial_terms, left);
 			token++;
 		} break;
 
@@ -555,7 +566,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 				.value = const_f32(token->f),
 				.term.token = token,
 			};
-			exprtable_add(&initial_terms, left);
+			exprtable_add(&module->initial_terms, left);
 			token++;
 		} break;
 
@@ -567,7 +578,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 				.value = const_f64(token->d),
 				.term.token = token,
 			};
-			exprtable_add(&initial_terms, left);
+			exprtable_add(&module->initial_terms, left);
 			token++;
 		} break;
 
@@ -579,7 +590,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 				.value = 0,
 				.term.token = token,
 			};
-			exprtable_add(&initial_terms, left);
+			exprtable_add(&module->initial_terms, left);
 			token++;
 		} break;
 
@@ -605,7 +616,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 				.value = const_int(lut[token->kind]),
 				.term.token = token,
 			};
-			exprtable_add(&initial_terms, left);
+			exprtable_add(&module->initial_terms, left);
 			token++;
 		} break;
 
@@ -813,6 +824,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 			break;
 	}
 
+	left->scope = helper->scope;
 	left->begin = begin;
 	left->end = token;
 
@@ -820,7 +832,10 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 		if (token->kind == TOKEN_EQUAL && !allow_equals)
 			break;
 
-		u8 precedence = binary_precedence(token->kind) | postfix_precedence(token->kind) | ternary_precedence(token->kind);
+		u8 precedence =
+			binary_precedence(token->kind) |
+			postfix_precedence(token->kind) |
+			ternary_precedence(token->kind);
 
 		if (!precedence)
 			break;
@@ -837,34 +852,53 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 
 		Expression* expr = alloc_expression();
 
+		AstKind ast_kind_lut[] = {
+			[TOKEN_DOT]              = AST_EXPR_BINARY_DOT,
+			[TOKEN_ASTERISK]         = AST_EXPR_BINARY_MUL,
+			[TOKEN_SLASH]            = AST_EXPR_BINARY_DIV,
+			[TOKEN_BACK_SLASH]       = AST_EXPR_BINARY_MOD,
+			[TOKEN_LEFT_SHIFT]       = AST_EXPR_BINARY_LSHIFT,
+			[TOKEN_RIGHT_SHIFT]      = AST_EXPR_BINARY_RSHIFT,
+			[TOKEN_PIKE]             = AST_EXPR_BINARY_BIT_OR,
+			[TOKEN_AMPERSAND]        = AST_EXPR_BINARY_BIT_AND,
+			[TOKEN_CARET]            = AST_EXPR_BINARY_BIT_XOR,
+			[TOKEN_PLUS]             = AST_EXPR_BINARY_ADD,
+			[TOKEN_MINUS]            = AST_EXPR_BINARY_SUB,
+			[TOKEN_EQUAL]            = AST_EXPR_BINARY_EQUAL,
+			[TOKEN_NOT_EQUAL]        = AST_EXPR_BINARY_NOT_EQUAL,
+			[TOKEN_LESS]             = AST_EXPR_BINARY_LESS,
+			[TOKEN_LESS_OR_EQUAL]    = AST_EXPR_BINARY_LESS_OR_EQUAL,
+			[TOKEN_GREATER]          = AST_EXPR_BINARY_GREATER,
+			[TOKEN_GREATER_OR_EQUAL] = AST_EXPR_BINARY_GREATER_OR_EQUAL,
+			[TOKEN_AND]              = AST_EXPR_BINARY_AND,
+			[TOKEN_OR]               = AST_EXPR_BINARY_OR,
+		};
+
 		switch (token->kind) {
 			default:
 				errort(token, "parse_expression didn't handle binary operator %\n", arg_token(token));
 
-			case TOKEN_DOT:              expr->kind = AST_EXPR_BINARY_DOT;              goto GOTO_BINARY_OP;
-
-			case TOKEN_ASTERISK:         expr->kind = AST_EXPR_BINARY_MUL;              goto GOTO_BINARY_OP;
-			case TOKEN_SLASH:            expr->kind = AST_EXPR_BINARY_DIV;              goto GOTO_BINARY_OP;
-			case TOKEN_BACK_SLASH:       expr->kind = AST_EXPR_BINARY_MOD;              goto GOTO_BINARY_OP;
-			case TOKEN_LEFT_SHIFT:       expr->kind = AST_EXPR_BINARY_LSHIFT;           goto GOTO_BINARY_OP;
-			case TOKEN_RIGHT_SHIFT:      expr->kind = AST_EXPR_BINARY_RSHIFT;           goto GOTO_BINARY_OP;
-
-			case TOKEN_PIKE:             expr->kind = AST_EXPR_BINARY_BIT_OR;           goto GOTO_BINARY_OP;
-			case TOKEN_AMPERSAND:        expr->kind = AST_EXPR_BINARY_BIT_AND;          goto GOTO_BINARY_OP;
-			case TOKEN_CARET:            expr->kind = AST_EXPR_BINARY_BIT_XOR;          goto GOTO_BINARY_OP;
-			case TOKEN_PLUS:             expr->kind = AST_EXPR_BINARY_ADD;              goto GOTO_BINARY_OP;
-			case TOKEN_MINUS:            expr->kind = AST_EXPR_BINARY_SUB;              goto GOTO_BINARY_OP;
-
-			case TOKEN_EQUAL:            expr->kind = AST_EXPR_BINARY_EQUAL;            goto GOTO_BINARY_OP;
-			case TOKEN_NOT_EQUAL:        expr->kind = AST_EXPR_BINARY_NOT_EQUAL;        goto GOTO_BINARY_OP;
-			case TOKEN_LESS:             expr->kind = AST_EXPR_BINARY_LESS;             goto GOTO_BINARY_OP;
-			case TOKEN_LESS_OR_EQUAL:    expr->kind = AST_EXPR_BINARY_LESS_OR_EQUAL;    goto GOTO_BINARY_OP;
-			case TOKEN_GREATER:          expr->kind = AST_EXPR_BINARY_GREATER;          goto GOTO_BINARY_OP;
-			case TOKEN_GREATER_OR_EQUAL: expr->kind = AST_EXPR_BINARY_GREATER_OR_EQUAL; goto GOTO_BINARY_OP;
-
-			case TOKEN_AND:              expr->kind = AST_EXPR_BINARY_AND;              goto GOTO_BINARY_OP;
-			case TOKEN_OR:               expr->kind = AST_EXPR_BINARY_OR;               goto GOTO_BINARY_OP;
+			case TOKEN_DOT:
+			case TOKEN_ASTERISK:
+			case TOKEN_SLASH:
+			case TOKEN_BACK_SLASH:
+			case TOKEN_LEFT_SHIFT:
+			case TOKEN_RIGHT_SHIFT:
+			case TOKEN_PIKE:
+			case TOKEN_AMPERSAND:
+			case TOKEN_CARET:
+			case TOKEN_PLUS:
+			case TOKEN_MINUS:
+			case TOKEN_EQUAL:
+			case TOKEN_NOT_EQUAL:
+			case TOKEN_LESS:
+			case TOKEN_LESS_OR_EQUAL:
+			case TOKEN_GREATER:
+			case TOKEN_GREATER_OR_EQUAL:
+			case TOKEN_AND:
+			case TOKEN_OR:
 			GOTO_BINARY_OP: {
+				expr->kind = ast_kind_lut[token->kind];
 				expr->binary.optoken = token;
 				expr->binary.left = left;
 
@@ -977,6 +1011,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 			} break;
 		}
 
+		expr->scope = helper->scope;
 		expr->begin = begin;
 		expr->end = token;
 		left = expr;
@@ -1464,8 +1499,35 @@ static Token* parse_function(Module* module, Token* token, Indent16 indent) {
 	return token;
 }
 
+static void fix_variables(Module* module) {
+	for (u32 i = 0; i < module->unknown_vars.count; i++) {
+		Expression* expr = module->unknown_vars.expressions[i];
+		String name = expr->term.token->identifier;
+
+		assert(expr->term.token);
+
+		Scope* found_scope;
+		Variable* var = find_var(&module->scope, name, &found_scope);
+		expr->term.var = var;
+
+		if (var) {
+			print("Successfully found variable '%'\n", arg_string(name));
+			continue;
+		}
+
+		var = find_var(expr->scope, name, &found_scope);
+
+		if (var) {
+			errore(expr, 0, "Variable '%' was used before it's declaration\n", arg_string(name));
+		}
+
+		errore(expr, 0, "Variable '%' doesn't exist\n", arg_string(name));
+	}
+}
+
 static void parse_module(Module* module) {
 	Token* token = module->tokens;
+	module->scope.flags |= SCOPE_GLOBAL;
 
 	// PreAllocate functions
 	module->functions = stack_alloc(sizeof(Function)*module->function_count);
@@ -1523,9 +1585,6 @@ static void parse_module(Module* module) {
 		}
 	}
 
-	for (u32 i = 0; i < unknown_vars.count; i++) {
-		Expression* expr = unknown_vars.expressions[i];
-		print("Finding terminal variable '%'\n", arg_string(expr->begin->string));
-	}
+	fix_variables(module);
 }
 

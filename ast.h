@@ -176,6 +176,7 @@ struct Scope {
 	Scope* parent_scope;
 
 	Variable** variables;
+	char** var_names;
 	u32 variable_count;
 	u32 variable_capacity;
 };
@@ -202,6 +203,7 @@ struct Function {
 struct Expression {
 	AST_HEADER;
 	V32 type_value;
+	Scope* scope;
 	Ast* user;
 	V32 value;
 
@@ -334,7 +336,6 @@ struct Variable {
 	Expression* type_expr;
 	Expression* init_expr;
 	TypeID type;
-	struct Instruction* stack;
 };
 
 struct Statement {
@@ -348,6 +349,14 @@ struct Statement {
 		Return ret;
 		Break brk;
 	};
+};
+
+typedef struct ExpressionTable ExpressionTable;
+
+struct ExpressionTable {
+	Expression** expressions;
+	u32 count;
+	u32 capacity;
 };
 
 struct Module {
@@ -373,6 +382,10 @@ struct Module {
 	u64 enum_count;
 
 	char** usertype_names;
+
+	ExpressionTable initial_terms;
+	ExpressionTable unknown_vars;
+
 };
 
 union Ast {

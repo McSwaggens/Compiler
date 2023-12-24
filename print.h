@@ -11,8 +11,7 @@ static void printbuff(OutputBuffer* buffer, const char* format, ...);
 static void print(const char* format, ...);
 static void error(String file, Position pos, const char* format, ...);
 static void errort(Token* token, const char* format, ...);
-static void errorex(Expression* expr, u64 extra_lines, const char* format, ...);
-static void errore(Expression* expr, const char* format, ...);
+static void errore(Expression* expr, u64 extra_lines, const char* format, ...);
 
 typedef enum FormatArgumentKind {
 	PRINT_ARG_BOOL,

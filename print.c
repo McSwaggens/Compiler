@@ -926,8 +926,7 @@ static void write_fill_char(OutputBuffer* buffer, char c, u64 n) {
 	while (n--)
 		write_char(buffer, c);
 }
-
-static void errorex(Expression* expr, u64 extra_lines, const char* format, ...) {
+static void errore(Expression* expr, u64 extra_lines, const char* format, ...) {
 	OutputBuffer* buffer = &standard_output_buffer;
 
 	Module* module = find_module(expr->begin);
@@ -987,13 +986,5 @@ static void errorex(Expression* expr, u64 extra_lines, const char* format, ...) 
 
 	flush_output_buffer(&standard_output_buffer);
 	exit_program();
-}
-
-static void errore(Expression* expr, const char* format, ...) {
-	OutputBuffer* buffer = &standard_output_buffer;
-	__builtin_va_list args;
-	__builtin_va_start(args, format);
-	errorex(expr, 3, format, args);
-	__builtin_va_end(args);
 }
 
