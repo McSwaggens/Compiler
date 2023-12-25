@@ -4,7 +4,7 @@
 static void complete(Ast* ast) {
 }
 
-static void scan(Ast* ast) {
+static void scan(Ast* ast, Context context) {
 	Expression* expr = (Expression*)ast;
 
 	switch (ast->kind) {
@@ -58,21 +58,31 @@ static void scan(Ast* ast) {
 			Expression* left  = expr->binary.left;
 			Expression* right = expr->binary.right;
 
-			TypeID ltid = remove_ref(left->type);
-			TypeID rtid = remove_ref(right->type);
+			// if (!known(left->type_value)) {
+			// 	error("left type is unknown.\n");
+			// 	return;
+			// }
 
-			if (!ltid || !rtid) {
-				return;
-			}
+			// TypeID ltid = resolve(left->type);
+			// TypeID rtid = resolve(right->type);
 
-			expr->flags |= (left->flags & right->flags) & (AST_FLAG_CONSTANT);
+			// if (!ltid || !rtid) {
+			// 	return;
+			// }
 
-			// ptr + int
-			if (is_ptr(ltid) && is_int(rtid)) {
-				expr->type = ltid;
-				complete(ast);
-				return;
-			}
+			// expr->flags |= (left->flags & right->flags) & (AST_FLAG_CONSTANT);
+
+			// // ptr + int
+			// if (is_ptr(ltid) && is_int(rtid)) {
+			// 	expr->type = ltid;
+			// 	complete(ast);
+			// 	return;
+			// }
+
+			// if (is_int(ltid) && is_int(rtid)) {
+			// 	expr->type = ltid;
+			// 	complete(ast);
+			// }
 
 		} return;
 

@@ -55,8 +55,8 @@ enum { false = 0, true = 1 };
 typedef float  f32;
 typedef double f64;
 
-static const f32 FLOAT32_INFINITY = __builtin_inff();
-static const f32 FLOAT64_INFINITY = __builtin_inf();
+static const  f32 FLOAT32_INFINITY = __builtin_inff();
+static const  f32 FLOAT64_INFINITY = __builtin_inf();
 static inline bool is_nan_f32(f32 f) { return *(u32*)&f > 0x7F800000; }
 static inline bool is_nan_f64(f64 f) { return *(u64*)&f > 0x7F80000000000000; } // @Warning: Test me
 
@@ -97,8 +97,8 @@ static inline bool is_pow2(s64 n) {
 	return bit_count(n) == 1;
 }
 
-static inline s64 round_pow2(s64 n) {
-	if (bit_count(n) == 1)
+static s64 round_pow2(s64 n) {
+	if (is_pow2(n))
 		return n;
 
 	return next_pow2(n);
