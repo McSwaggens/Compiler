@@ -6,7 +6,7 @@ static Type type_table[TYPE_TABLE_SIZE] = { 0 };
 static u32 type_table_head_index;
 
 static inline TypeKind get_type_kind(TypeID  id) { return id >> TYPEID_INDEX_BITS; }
-static inline u32      get_type_index(TypeID id) { return id & 0x0FFFFFFF;  }
+static inline u32      get_type_index(TypeID id) { return id & ((1llu<<TYPEID_INDEX_BITS)-1);  }
 static inline Type*    get_type(TypeID id)       { return type_table + get_type_index(id); }
 static inline u64      get_type_size(TypeID id)  { return get_type(id)->size; }
 
@@ -59,24 +59,6 @@ static void xtable_push(XTable* table, TypeExtent ext) {
 	}
 
 	table->exts[table->length++] = ext;
-}
-
-static TypeID get_ref_type(TypeID subtype) {
-	assert(subtype);
-
-	Type* subinfo = get_type(subtype);
-
-	if (subinfo->ref)
-		return subinfo->ref;
-
-	TypeID newid = create_type(TYPE_KIND_REF, (Type){
-		.subtype = subtype,
-		.size = 8, // subtype size?
-	});
-
-	subinfo->ref = newid;
-
-	return newid;
 }
 
 static TypeID get_ptr_type(TypeID subtype) {
@@ -245,13 +227,6 @@ static TypeID get_subtype(TypeID type) {
 	return p->subtype;
 }
 
-static TypeID remove_ref(TypeID type) {
-	if (!is_ref(type))
-		return type;
-
-	return get_subtype(type);
-}
-
 static bool is_int(TypeID type) {
 	return is_signed(type) || is_unsigned(type);
 }
@@ -268,10 +243,6 @@ static bool is_float(TypeID type) {
 	return type >= TYPE_FLOAT32 && type <= TYPE_FLOAT64;
 }
 
-static bool is_ref(TypeID type) {
-	return get_type_kind(type) == TYPE_KIND_REF;
-}
-
 static bool is_ptr(TypeID type) {
 	return get_type_kind(type) == TYPE_KIND_PTR;
 }
@@ -281,7 +252,6 @@ static bool is_specifier(TypeID type) {
 		default: assert_unreachable();
 
 		case TYPE_KIND_PTR:
-		case TYPE_KIND_REF:
 		case TYPE_KIND_ARRAY:
 		case TYPE_KIND_FIXED:
 			return true;

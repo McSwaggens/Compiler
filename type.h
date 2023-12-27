@@ -8,19 +8,18 @@ typedef enum TypeKind TypeKind;
 typedef enum PrimitiveType PrimitiveType;
 typedef u32 TypeID;
 
-#define TYPEID_KIND_BITS 4
+#define TYPEID_KIND_BITS 3
 #define TYPEID_INDEX_BITS (sizeof(TypeID)*8 - TYPEID_KIND_BITS)
 
 enum TypeKind {
 	TYPE_KIND_PRIMITIVE = 0,
 	TYPE_KIND_PTR       = 1,
-	TYPE_KIND_REF       = 2,
-	TYPE_KIND_ARRAY     = 3,
-	TYPE_KIND_FIXED     = 4,
-	TYPE_KIND_STRUCT    = 5,
-	TYPE_KIND_ENUM      = 6,
-	TYPE_KIND_TUPLE     = 7,
-	TYPE_KIND_FUNCTION  = 8,
+	TYPE_KIND_ARRAY     = 2,
+	TYPE_KIND_FIXED     = 3,
+	TYPE_KIND_STRUCT    = 4,
+	TYPE_KIND_ENUM      = 5,
+	TYPE_KIND_TUPLE     = 6,
+	TYPE_KIND_FUNCTION  = 7,
 };
 
 enum PrimitiveType {
@@ -72,7 +71,6 @@ typedef struct XTable {
 struct Type {
 	TypeID ptr;
 	TypeID array;
-	TypeID ref;
 	TypeID subtype;
 	TypeID input;
 	TypeID output;
@@ -92,18 +90,15 @@ static inline u64 get_type_size(TypeID id);
 static inline u64 get_type_tuple_length(TypeID type);
 static inline u64 get_type_fixed_length(TypeID type);
 static TypeID get_ptr_type(TypeID typeid);
-static TypeID get_ref_type(TypeID subtype);
 static TypeID get_array_type(TypeID typeid);
 static TypeID get_func_type(TypeID input, TypeID output);
 static TypeID get_tuple_type(TypeID* types, u64 count);
 static TypeID get_fixed_type(TypeID typeid, u64 length);
 static TypeID get_subtype(TypeID type);
-static TypeID remove_ref(TypeID type);
 static bool is_int(TypeID type);
 static bool is_unsigned(TypeID type);
 static bool is_signed(TypeID type);
 static bool is_float(TypeID type);
-static bool is_ref(TypeID type);
 static bool is_ptr(TypeID type);
 static bool is_specifier(TypeID type);
 #endif // TYPE_H

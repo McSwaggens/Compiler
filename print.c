@@ -287,11 +287,6 @@ static void write_type(OutputBuffer* buffer, TypeID type) {
 			write_type(buffer, info->subtype);
 		} break;
 
-		case TYPE_KIND_REF: {
-			write_cstring(buffer, "*");
-			write_type(buffer, info->subtype);
-		} break;
-
 		case TYPE_KIND_ARRAY: {
 			write_cstring(buffer, "[]");
 			write_type(buffer, info->subtype);
