@@ -4,7 +4,7 @@
 static void complete(Ast* ast) {
 }
 
-static void scan(Ast* ast, Context context) {
+static void scan_ast(Ast* ast, Context context) {
 	Expression* expr = (Expression*)ast;
 
 	switch (ast->kind) {
@@ -136,6 +136,25 @@ static void scan(Ast* ast, Context context) {
 		case AST_STATEMENT_INC:
 		case AST_STATEMENT_DEC:
 			return;
+	}
+}
+
+static void scan_expression(ScanHelper* helper,  Expression* expr, Scope* scope);
+static void scan_statement(ScanHelper* helper,   Statement* statement, Code* code);
+static void scan_assignment(ScanHelper* helper,  Statement* statement, Scope* scope);
+static void scan_controlflow(ScanHelper* helper, ControlFlow* controlflow, Scope* scope);
+static void scan_code(ScanHelper* helper,        Code* code);
+static void scan_function(ScanHelper* helper,    Function* func) {
+}
+
+static void scan_module(Module* module) {
+	ScanHelper helper = (ScanHelper){
+	};
+
+	for (u32 i = 0; i < module->function_count; i++) {
+		Function* func = &module->functions[i];
+		print("Scanning function '%'\n", arg_token(func->name));
+		scan_function(&helper, func);
 	}
 }
 

@@ -336,6 +336,7 @@ struct Variable {
 	Expression* type_expr;
 	Expression* init_expr;
 	TypeID type;
+	V32 stack;
 };
 
 struct Statement {

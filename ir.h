@@ -1,8 +1,6 @@
 #ifndef IR_H
 #define IR_H
 
-#include "general.h"
-
 typedef struct Value    Value;
 typedef struct Relation Relation;
 typedef struct Context  Context;
@@ -13,6 +11,9 @@ typedef enum RelationKind RelationKind;
 typedef enum ValueKind ValueKind;
 
 typedef u32 V32;
+
+#include "general.h"
+#include "ir.h"
 
 enum Resolution { UNKNOWN = 0, KNOWN_FALSE = 1, KNOWN_TRUE = 2 };
 

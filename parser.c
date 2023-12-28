@@ -1,6 +1,8 @@
 #include "ast.h"
 #include "print.h"
 #include "alloc.h"
+#include "semantic.h"
+#include "mm.h"
 
 static bool is_correct_indent(Token* token, Indent16 indent) {
 	return !is_newline(token) || token->indent == indent;
@@ -1586,5 +1588,7 @@ static void parse_module(Module* module) {
 	}
 
 	fix_variables(module);
+
+	scan_module(module);
 }
 

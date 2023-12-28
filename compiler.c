@@ -6,6 +6,7 @@
 #include "parser.c"
 #include "semantic.c"
 #include "ir.c"
+#include "mm.c"
 #include "type.c"
 #include "file.c"
 
@@ -76,6 +77,7 @@ int main(int argc, char* argv[]) {
 	init_type_system();
 	init_module_store();
 	init_ir();
+	init_mm();
 
 	list_dir(".");
 

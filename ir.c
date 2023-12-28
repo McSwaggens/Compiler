@@ -207,8 +207,6 @@ static Context context_duplicate(Context context) {
 	return result;
 }
 
-// -------------------------------------------------- //
-
 static bool is_contained_in_context(Context* context, Key key) {
 	for (u32 i = 0; i < context->count; i++) {
 		Key k = context->keys[i];
@@ -219,6 +217,8 @@ static bool is_contained_in_context(Context* context, Key key) {
 
 	return false;
 }
+
+// -------------------------------------------------- //
 
 static V32 resolve(Context* context, V32 v) {
 	Value* value = get_value(v);
