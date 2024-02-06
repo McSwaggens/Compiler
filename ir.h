@@ -6,6 +6,8 @@ typedef struct Relation Relation;
 typedef struct Context  Context;
 typedef struct Key      Key;
 typedef struct Trigger  Trigger;
+typedef struct Procedure Procedure;
+typedef struct ProcedureList ProcedureList;
 
 typedef enum RelationKind RelationKind;
 typedef enum ValueKind ValueKind;
@@ -54,7 +56,7 @@ struct Context {
 struct Trigger {
 	Relation relation;
 	Context context;
-	Ast* ast;
+	union Ast* ast;
 };
 
 struct Value {
@@ -69,19 +71,30 @@ struct Value {
 	};
 };
 
+struct Procedure {
+	Context context;
+	V32 return_values;
+};
+
+struct ProcedureList {
+	Procedure* data;
+	u32 count;
+	u32 capacity;
+};
+
 static void init_ir(void);
-static void relate(V32 v, Relation rel);
-static V32 make_value(void);
-static inline Value* get_value(V32 id);
-static void insert_trigger(V32 v, Trigger trigger);
+static void ir_relate(V32 v, Relation rel);
+static V32 ir_make_value(void);
+static inline Value* ir_get_value(V32 id);
+static void ir_insert_trigger(V32 v, Trigger trigger);
 
-static bool    context_check_for_key(Context* context, Key key);
-static void    context_add(Context* context, Key key);
-static void    context_free(Context context);
-static Context context_duplicate(Context context);
+static bool    ir_context_check_for_key(Context* context, Key key);
+static void    ir_context_add(Context* context, Key key);
+static void    ir_context_free(Context context);
+static Context ir_context_duplicate(Context context);
 
-static V32 const_int(u64 n);
-static V32 const_f32(f32 n);
-static V32 const_f64(f64 n);
+static V32 ir_int(u64 n);
+static V32 ir_f32(f32 n);
+static V32 ir_f64(f64 n);
 
 #endif

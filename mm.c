@@ -17,7 +17,7 @@ static inline MNode* mm_get(M32 mid) {
 	return &mm_node_block[mid];
 }
 
-static M32 mm_make_load(V32 addr, V32 size) {
+static M32 mm_make_load(M32 prev, V32 addr, V32 size) {
 	M32 mid = mm_next_id();
 	MNode* mnode = mm_get(mid);
 
@@ -25,12 +25,13 @@ static M32 mm_make_load(V32 addr, V32 size) {
 		.kind = MM_LOAD,
 		.addr = addr,
 		.size = size,
+		.prev = prev,
 	};
 
 	return mid;
 }
 
-static M32 mm_make_store(V32 addr, V32 value, V32 size) {
+static M32 mm_make_store(M32 prev, V32 addr, V32 value, V32 size) {
 	M32 mid = mm_next_id();
 	MNode* mnode = mm_get(mid);
 
@@ -39,6 +40,7 @@ static M32 mm_make_store(V32 addr, V32 value, V32 size) {
 		.addr  = addr,
 		.size  = size,
 		.value = value,
+		.prev  = prev,
 	};
 
 	return mid;

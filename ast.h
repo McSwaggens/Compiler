@@ -3,6 +3,7 @@
 
 #include "type.h"
 #include "lexer.h"
+#include "mm.h"
 
 typedef struct Module       Module;
 typedef struct Function     Function;
@@ -22,9 +23,7 @@ typedef struct Enum         Enum;
 typedef struct EnumField    EnumField;
 typedef struct Match        Match;
 typedef struct MatchGroup   MatchGroup;
-typedef struct AstUsers     AstUsers;
 
-typedef enum AstKind        AstKind;
 typedef enum StatementKind  StatementKind;
 typedef enum ExpressionKind ExpressionKind;
 typedef enum BranchKind     BranchKind;
@@ -33,132 +32,114 @@ typedef enum ClauseKind     ClauseKind;
 typedef enum ScopeFlags      ScopeFlags;
 typedef enum VariableFlags   VariableFlags;
 typedef enum ExpressionFlags ExpressionFlags;
-typedef enum AstFlags        AstFlags;
-
-typedef union Ast Ast;
+typedef enum FunctionFlags FunctionFlags;
 
 #include "ir.h"
 
-struct AstUsers {
-	union { union Ast* single; union Ast** users; };
-	u16 count;
+enum ExpressionFlags {
+	EXPR_FLAG_CONSTANT = 0x01,
+	EXPR_FLAG_REF      = 0x02,
 };
 
-#define AST_HEADER struct { AstKind kind:8; AstFlags flags:8; AstUsers users; }
-
-enum AstFlags {
-	AST_FLAG_COMPLETE     = 0x01,
-	AST_FLAG_CONSTANT     = 0x02,
-	AST_FLAG_GLOBAL       = 0x04,
-	AST_FLAG_VAR_CONSTANT = 0x08,
-	AST_FLAG_VAR_PARAM    = 0x10,
+enum VariableFlags {
+	VAR_FLAG_GLOBAL   = 0x01,
+	VAR_FLAG_CONSTANT = 0x02,
+	VAR_FLAG_PARAM    = 0x04,
 };
 
-enum AstKind {
-	AST_INVALID = 0,
+enum FunctionFlags {
+	FUNC_PLACEHOLDER = 0,
+};
 
-	AST_FUNCTION,
-	AST_VARIABLE,
+enum ExpressionKind {
+	EXPR_NULL,
+	EXPR_TRUE,
+	EXPR_FALSE,
+	EXPR_LITERAL,
+	EXPR_FUNCTION,
+	EXPR_BASETYPE_PRIMITIVE,
+	EXPR_BASETYPE_IDENTIFIER,
+	EXPR_IDENTIFIER_CONSTANT,
+	EXPR_IDENTIFIER_FORMAL,
+	EXPR_IDENTIFIER_VARIABLE,
+	EXPR_ARRAY,
+	EXPR_TUPLE,
+	EXPR_SPEC_PTR,
+	EXPR_SPEC_ARRAY,
+	EXPR_SPEC_FIXED,
+	EXPR_UNARY_PTR,
+	EXPR_UNARY_REF,
+	EXPR_UNARY_ABS,
+	EXPR_UNARY_INVERSE,
+	EXPR_UNARY_NOT,
+	EXPR_UNARY_BIT_NOT,
+	EXPR_UNARY_IMPLICIT_CAST,
+	EXPR_BINARY_ADD,
+	EXPR_BINARY_SUB,
+	EXPR_BINARY_MUL,
+	EXPR_BINARY_DIV,
+	EXPR_BINARY_MOD,
+	EXPR_BINARY_BIT_XOR,
+	EXPR_BINARY_BIT_AND,
+	EXPR_BINARY_BIT_OR,
+	EXPR_BINARY_OR,
+	EXPR_BINARY_AND,
+	EXPR_BINARY_EQUAL,
+	EXPR_BINARY_NOT_EQUAL,
+	EXPR_BINARY_LESS,
+	EXPR_BINARY_LESS_OR_EQUAL,
+	EXPR_BINARY_GREATER,
+	EXPR_BINARY_GREATER_OR_EQUAL,
+	EXPR_BINARY_DOT,
+	EXPR_BINARY_DOT_DOT,
+	EXPR_BINARY_LSHIFT,
+	EXPR_BINARY_RSHIFT,
+	EXPR_BINARY_SPAN,
+	EXPR_CALL,
+	EXPR_INDEX,
+	EXPR_TERNARY_IF_ELSE,
+};
 
-	AST_STRUCT,
-	AST_STRUCT_MEMBER,
-
-	AST_ENUM,
-	AST_ENUM_MEMBER,
-
-	AST_BRANCH,
-	AST_CONTROLFLOW,
-
-	AST_EXPR_NULL,
-	AST_EXPR_TRUE,
-	AST_EXPR_FALSE,
-	AST_EXPR_LITERAL,
-	AST_EXPR_FUNCTION,
-	AST_EXPR_BASETYPE_PRIMITIVE,
-	AST_EXPR_BASETYPE_IDENTIFIER,
-	AST_EXPR_IDENTIFIER_CONSTANT,
-	AST_EXPR_IDENTIFIER_FORMAL,
-	AST_EXPR_IDENTIFIER_VARIABLE,
-	AST_EXPR_ARRAY,
-	AST_EXPR_TUPLE,
-	AST_EXPR_SPEC_PTR,
-	AST_EXPR_SPEC_ARRAY,
-	AST_EXPR_SPEC_FIXED,
-	AST_EXPR_UNARY_PTR,
-	AST_EXPR_UNARY_REF,
-	AST_EXPR_UNARY_ABS,
-	AST_EXPR_UNARY_INVERSE,
-	AST_EXPR_UNARY_NOT,
-	AST_EXPR_UNARY_BIT_NOT,
-	AST_EXPR_UNARY_IMPLICIT_CAST,
-	AST_EXPR_BINARY_ADD,
-	AST_EXPR_BINARY_SUB,
-	AST_EXPR_BINARY_MUL,
-	AST_EXPR_BINARY_DIV,
-	AST_EXPR_BINARY_MOD,
-	AST_EXPR_BINARY_BIT_XOR,
-	AST_EXPR_BINARY_BIT_AND,
-	AST_EXPR_BINARY_BIT_OR,
-	AST_EXPR_BINARY_OR,
-	AST_EXPR_BINARY_AND,
-	AST_EXPR_BINARY_EQUAL,
-	AST_EXPR_BINARY_NOT_EQUAL,
-	AST_EXPR_BINARY_LESS,
-	AST_EXPR_BINARY_LESS_OR_EQUAL,
-	AST_EXPR_BINARY_GREATER,
-	AST_EXPR_BINARY_GREATER_OR_EQUAL,
-	AST_EXPR_BINARY_DOT,
-	AST_EXPR_BINARY_DOT_DOT,
-	AST_EXPR_BINARY_LSHIFT,
-	AST_EXPR_BINARY_RSHIFT,
-	AST_EXPR_BINARY_SPAN,
-	AST_EXPR_CALL,
-	AST_EXPR_INDEX,
-	AST_EXPR_TERNARY_IF_ELSE,
-
-	AST_STATEMENT_ASSIGNMENT,
-	AST_STATEMENT_ASSIGNMENT_LSH,
-	AST_STATEMENT_ASSIGNMENT_RSH,
-	AST_STATEMENT_ASSIGNMENT_DIV,
-	AST_STATEMENT_ASSIGNMENT_MOD,
-	AST_STATEMENT_ASSIGNMENT_ADD,
-	AST_STATEMENT_ASSIGNMENT_SUB,
-	AST_STATEMENT_ASSIGNMENT_MUL,
-	AST_STATEMENT_ASSIGNMENT_BIT_XOR,
-	AST_STATEMENT_ASSIGNMENT_BIT_AND,
-	AST_STATEMENT_ASSIGNMENT_BIT_OR,
-	AST_STATEMENT_EXPRESSION,
-	AST_STATEMENT_CONTROLFLOW,
-	AST_STATEMENT_VARDECL,
-	AST_STATEMENT_RETURN,
-	AST_STATEMENT_BREAK,
-	AST_STATEMENT_CONTINUE,
-	AST_STATEMENT_INC,
-	AST_STATEMENT_DEC,
+enum StatementKind {
+	STATEMENT_ASSIGNMENT,
+	STATEMENT_ASSIGNMENT_LSH,
+	STATEMENT_ASSIGNMENT_RSH,
+	STATEMENT_ASSIGNMENT_DIV,
+	STATEMENT_ASSIGNMENT_MOD,
+	STATEMENT_ASSIGNMENT_ADD,
+	STATEMENT_ASSIGNMENT_SUB,
+	STATEMENT_ASSIGNMENT_MUL,
+	STATEMENT_ASSIGNMENT_BIT_XOR,
+	STATEMENT_ASSIGNMENT_BIT_AND,
+	STATEMENT_ASSIGNMENT_BIT_OR,
+	STATEMENT_EXPRESSION,
+	STATEMENT_CONTROLFLOW,
+	STATEMENT_VARDECL,
+	STATEMENT_RETURN,
+	STATEMENT_BREAK,
+	STATEMENT_CONTINUE,
+	STATEMENT_INC,
+	STATEMENT_DEC,
 };
 
 struct StructField {
-	AST_HEADER;
 	Token* name;
-	// TypeID type;
+	TypeID type;
 	Expression* type_expr;
 };
 
 struct Struct {
-	AST_HEADER;
 	Token* name;
 	StructField* fields;
 	u64 field_count;
 };
 
 struct EnumField {
-	AST_HEADER;
 	Token* name;
 	Expression* value;
 };
 
 struct Enum {
-	AST_HEADER;
 	Token* name;
 	Expression* type_expr;
 	EnumField* fields;
@@ -190,8 +171,7 @@ struct Code {
 };
 
 struct Function {
-	AST_HEADER;
-	struct { V32* data; u16 count; } contexts;
+	FunctionFlags flags;
 	Token* name;
 	Variable* params;
 	u64 param_count;
@@ -201,10 +181,10 @@ struct Function {
 };
 
 struct Expression {
-	AST_HEADER;
-	V32 type_value;
+	ExpressionKind kind;
+	ExpressionFlags flags;
+	TypeID type;
 	Scope* scope;
-	Ast* user;
 	V32 value;
 
 	union {
@@ -302,7 +282,6 @@ struct Match {
 };
 
 struct Branch {
-	AST_HEADER;
 	Code code;
 	BranchKind branch_kind;
 	ClauseKind clause_kind;
@@ -315,7 +294,6 @@ struct Branch {
 };
 
 struct ControlFlow {
-	AST_HEADER;
 	Branch* branches;
 	u64 branch_count;
 };
@@ -331,16 +309,16 @@ struct Continue {
 };
 
 struct Variable {
-	AST_HEADER;
+	VariableFlags flags;
 	Token* name;
 	Expression* type_expr;
 	Expression* init_expr;
 	TypeID type;
-	V32 stack;
+	M32 stack;
 };
 
 struct Statement {
-	AST_HEADER;
+	StatementKind kind;
 
 	union {
 		Assignment assign;
@@ -387,18 +365,6 @@ struct Module {
 	ExpressionTable initial_terms;
 	ExpressionTable unknown_vars;
 
-};
-
-union Ast {
-	AST_HEADER;
-	Function    func;
-	Expression  expr;
-	Statement   statement;
-	Variable    var;
-	Struct      ustruct;
-	StructField ustruct_field;
-	Enum        uenum;
-	EnumField   uenum_field;
 };
 
 static Module*   find_module(Token* token);

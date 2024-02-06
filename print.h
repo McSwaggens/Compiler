@@ -32,8 +32,6 @@ typedef enum FormatArgumentKind {
 	PRINT_ARG_TOKEN, 
 	PRINT_ARG_EXPRESSION,
 	PRINT_ARG_STATEMENT,
-	PRINT_ARG_AST,
-	PRINT_ARG_AST_KIND,
 	PRINT_ARG_TYPE,
 } FormatArgumentKind;
 
@@ -62,8 +60,6 @@ typedef struct FormatArg {
 		String str;
 		TokenKind token_kind;
 		Token* token;
-		Ast* ast;
-		AstKind ast_kind;
 		Expression* expr;
 		Statement* statement;
 		TypeID type;
@@ -87,8 +83,6 @@ static FormatArg arg_string(String s)             { return (FormatArg){ PRINT_AR
 static FormatArg arg_cstring(char* s)             { return (FormatArg){ PRINT_ARG_CSTRING,    .s          = s }; }
 static FormatArg arg_token(Token* token)          { return (FormatArg){ PRINT_ARG_TOKEN,      .token      = token}; }
 static FormatArg arg_token_kind(TokenKind kind)   { return (FormatArg){ PRINT_ARG_TOKEN_KIND, .token_kind = kind }; }
-static FormatArg arg_ast_kind(AstKind kind)       { return (FormatArg){ PRINT_ARG_AST_KIND,   .ast_kind   = kind }; }
-static FormatArg arg_ast(Ast* ast)                { return (FormatArg){ PRINT_ARG_AST,        .ast        = ast }; }
 static FormatArg arg_statement(Statement* stmt)   { return (FormatArg){ PRINT_ARG_STATEMENT,  .statement  = stmt }; }
 static FormatArg arg_expression(Expression* expr) { return (FormatArg){ PRINT_ARG_EXPRESSION, .expr       = expr }; }
 static FormatArg arg_type(TypeID type)            { return (FormatArg){ PRINT_ARG_TYPE,       .type       = type }; }

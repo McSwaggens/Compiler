@@ -3,6 +3,7 @@
 
 static Value value_table[1llu<<32llu];
 static V32 value_table_index_head;
+static ProcedureList procedures;
 
 #define IR_PRELOAD_BEGIN -1
 #define IR_PRELOAD_END   32
@@ -12,7 +13,7 @@ static V32 value_table_index_head;
 static void init_ir(void) {
 	value_table_index_head = 4;
 	for (s64 i = IR_PRELOAD_BEGIN; i <= IR_PRELOAD_BEGIN; i++) {
-		*get_value(const_int(i)) = (Value){ .const_int = i };
+		*ir_get_value(ir_int(i)) = (Value){ .const_int = i };
 	}
 }
 
@@ -67,8 +68,8 @@ static bool find_relation(Value* value, Relation rel, u16* out_index) {
 	return false;
 }
 
-static void relate(V32 vid, Relation rel) {
-	Value* value = get_value(vid);
+static void ir_relate(V32 vid, Relation rel) {
+	Value* value = ir_get_value(vid);
 
 	u16 insertion_index = 0;
 	if (find_relation(value, rel, &insertion_index))
@@ -93,11 +94,11 @@ static void relate(V32 vid, Relation rel) {
 	value->relation_count++;
 }
 
-static V32 make_value(void) {
+static V32 ir_make_value(void) {
 	return value_table_index_head++;
 }
 
-static inline Value* get_value(V32 id) {
+static inline Value* ir_get_value(V32 id) {
 	return &value_table[id];
 }
 
@@ -115,7 +116,7 @@ struct ConstHashTableNode {
 #define CONST_HASH_TABLE_MASK (CONST_HASH_TABLE_SIZE-1)
 static ConstHashTableNode* const_hash_table[CONST_HASH_TABLE_SIZE] = { 0 };
 
-static V32 const_int(u64 n) {
+static V32 ir_int(u64 n) {
 	if ((s64)n >= IR_PRELOAD_BEGIN && (s64)n <= IR_PRELOAD_END) {
 		return 1+n+abs(IR_PRELOAD_BEGIN);
 	}
@@ -130,8 +131,8 @@ static V32 const_int(u64 n) {
 		return (*ppnode)->id;
 	}
 
-	V32 id = make_value();
-	*get_value(id) = (Value) {
+	V32 id = ir_make_value();
+	*ir_get_value(id) = (Value) {
 		.const_int = n,
 	};
 
@@ -148,12 +149,12 @@ static V32 const_int(u64 n) {
 	return id;
 }
 
-static V32 const_f32(f32 n) {
-	return const_int(*(u32*)&n);
+static V32 ir_f32(f32 n) {
+	return ir_int(*(u32*)&n);
 }
 
-static V32 const_f64(f64 n) {
-	return const_int(*(u64*)&n);
+static V32 ir_f64(f64 n) {
+	return ir_int(*(u64*)&n);
 }
 
 // -------------------------------------------------- //
@@ -221,7 +222,7 @@ static bool is_contained_in_context(Context* context, Key key) {
 // -------------------------------------------------- //
 
 static V32 resolve(Context* context, V32 v) {
-	Value* value = get_value(v);
+	Value* value = ir_get_value(v);
 
 	for (u32 i = 0; i < value->relation_count; i++) {
 		Relation* rel = &value->relations[i];
