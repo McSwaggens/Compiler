@@ -407,19 +407,6 @@ static bool ih_test(Token* token, IndentHelper* helper, s32 adjustment) {
 	return token->indent == expected_indent || token->indent == expected_indent-1;
 }
 
-static void exprtable_add(ExpressionTable* table, Expression* expr) {
-	if (table->count == table->capacity) {
-		table->capacity = next_pow2(table->capacity|4095);
-		table->expressions = realloc(
-			table->expressions,
-			table->count    * sizeof(*table->expressions),
-			table->capacity * sizeof(*table->expressions)
-		);
-	}
-
-	table->expressions[table->count++] = expr;
-}
-
 static Variable* find_var(Scope* scope, String name, Scope** out_scope) {
 	*out_scope = scope;
 
@@ -475,7 +462,6 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 				.flags = EXPR_FLAG_CONSTANT,
 				.term.token = token,
 			};
-			exprtable_add(&module->initial_terms, left);
 			token++;
 		} break;
 
@@ -486,7 +472,6 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 				.term.token = token,
 			};
 			// @Todo: Find function/struct/enum?
-			exprtable_add(&module->initial_terms, left);
 			token++;
 		} break;
 
@@ -501,11 +486,6 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 			left->term.var = var;
 			left->flags |= EXPR_FLAG_REF;
 
-			if (!var) {
-				exprtable_add(&module->unknown_vars, left);
-			}
-
-			exprtable_add(&module->initial_terms, left);
 			token++;
 		} break;
 
@@ -516,7 +496,6 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 				.type = TYPE_BOOL,
 				.value = ir_int(1),
 			};
-			exprtable_add(&module->initial_terms, left);
 			token++;
 		} break;
 
@@ -527,7 +506,6 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 				.type = TYPE_BOOL,
 				.value = ir_int(0),
 			};
-			exprtable_add(&module->initial_terms, left);
 			token++;
 		} break;
 
@@ -538,7 +516,6 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 				.type = get_ptr_type(TYPE_BYTE),
 				.value = ir_int(0),
 			};
-			exprtable_add(&module->initial_terms, left);
 			token++;
 		} break;
 
@@ -557,7 +534,6 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 				.value = ir_int(token->i),
 				.term.token = token,
 			};
-			exprtable_add(&module->initial_terms, left);
 			token++;
 		} break;
 
@@ -569,7 +545,6 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 				.value = ir_f32(token->f),
 				.term.token = token,
 			};
-			exprtable_add(&module->initial_terms, left);
 			token++;
 		} break;
 
@@ -581,7 +556,6 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 				.value = ir_f64(token->d),
 				.term.token = token,
 			};
-			exprtable_add(&module->initial_terms, left);
 			token++;
 		} break;
 
@@ -593,7 +567,6 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 				.value = 0,
 				.term.token = token,
 			};
-			exprtable_add(&module->initial_terms, left);
 			token++;
 		} break;
 
@@ -619,7 +592,6 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 				.value = type_lut[token->kind],
 				.term.token = token,
 			};
-			exprtable_add(&module->initial_terms, left);
 			token++;
 		} break;
 
@@ -1165,7 +1137,7 @@ static Token* parse_for(Module* module, Code* code, Token* token, Indent16 inden
 			errort(token, "Expected expression after ','\n");
 
 		check_indent(token, indent+1);
-		token = parse_expression(module, &code->scope, token, indent+1, true, &branch->new);
+		token = parse_expression(module, &code->scope, token, indent+1, true, &branch->nextval);
 	}
 
 	if (token->kind != TOKEN_COLON)
@@ -1428,6 +1400,7 @@ static Token* parse_statement(Module* module, Token* token, Indent16 indent, Cod
 
 static Token* parse_code(Module* module, Scope* parent_scope, Token* token, Indent16 indent, Code* code) {
 	code->scope.parent_scope = parent_scope;
+	code->scope.flags = SCOPE_FLAG_CODE;
 
 	if (token->indent > indent)
 		errort(token, "Invalid indent for statement\n");
@@ -1510,34 +1483,35 @@ static Token* parse_function(Module* module, Token* token, Indent16 indent) {
 }
 
 static void fix_variables(Module* module) {
-	for (u32 i = 0; i < module->unknown_vars.count; i++) {
-		Expression* expr = module->unknown_vars.expressions[i];
-		String name = expr->term.token->identifier;
+	// for (u32 i = 0; i < module->unknown_vars.count; i++) {
+	// 	Expression* expr = module->unknown_vars.expressions[i];
 
-		assert(expr->term.token);
+	// 	String name = expr->term.token->identifier;
 
-		Scope* found_scope;
-		Variable* var = find_var(&module->scope, name, &found_scope);
-		expr->term.var = var;
+	// 	assert(expr->term.token);
 
-		if (var) {
-			print("Successfully found variable '%'\n", arg_string(name));
-			continue;
-		}
+	// 	Scope* found_scope;
+	// 	Variable* var = find_var(&module->scope, name, &found_scope);
+	// 	expr->term.var = var;
 
-		var = find_var(expr->scope, name, &found_scope);
+	// 	if (var) {
+	// 		print("Successfully found variable '%'\n", arg_string(name));
+	// 		continue;
+	// 	}
 
-		if (var) {
-			errore(expr, 0, "Variable '%' was used before it's declaration\n", arg_string(name));
-		}
+	// 	var = find_var(expr->scope, name, &found_scope);
 
-		errore(expr, 0, "Variable '%' doesn't exist\n", arg_string(name));
-	}
+	// 	if (var) {
+	// 		errore(expr, 0, "Variable '%' was used before it's declaration\n", arg_string(name));
+	// 	}
+
+	// 	errore(expr, 0, "Variable '%' doesn't exist\n", arg_string(name));
+	// }
 }
 
 static void parse_module(Module* module) {
 	Token* token = module->tokens;
-	module->scope.flags |= SCOPE_GLOBAL;
+	module->scope.flags |= SCOPE_FLAG_GLOBAL;
 
 	// PreAllocate functions
 	module->functions = stack_alloc(sizeof(Function)*module->function_count);
@@ -1594,8 +1568,6 @@ static void parse_module(Module* module) {
 			}
 		}
 	}
-
-	fix_variables(module);
 
 	scan_module(module);
 }

@@ -147,9 +147,9 @@ struct Enum {
 };
 
 enum ScopeFlags {
-	SCOPE_GLOBAL      = 0x01,
-	SCOPE_CODE        = 0x02,
-	SCOPE_INSIDE_LOOP = 0x04,
+	SCOPE_FLAG_GLOBAL      = 0x01,
+	SCOPE_FLAG_CODE        = 0x02,
+	SCOPE_FLAG_INSIDE_LOOP = 0x04,
 };
 
 struct Scope {
@@ -287,7 +287,7 @@ struct Branch {
 	ClauseKind clause_kind;
 	Variable* var;
 	Expression* cond;
-	Expression* new;
+	Expression* nextval;
 	Match match;
 	Branch* belse;
 	Branch* bthen;
@@ -361,10 +361,6 @@ struct Module {
 	u64 enum_count;
 
 	char** usertype_names;
-
-	ExpressionTable initial_terms;
-	ExpressionTable unknown_vars;
-
 };
 
 static Module*   find_module(Token* token);
