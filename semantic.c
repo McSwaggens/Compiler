@@ -8,10 +8,243 @@ static void scan_statement(ScanHelper* helper,   Statement* statement, Code* cod
 static void scan_code(ScanHelper* helper,        Code* code);
 static void scan_function(ScanHelper* helper,    Function* func);
 
+static bool can_implicit_cast(TypeID a, TypeID b) {
+	if (a == b)
+		return true;
+
+	return false;
+}
+
+static Function* find_function(ScanHelper* helper, String name, TypeID* arg_types, u32 arg_type_count) {
+	Module* module = helper->module;
+
+	for (u32 i = 0; module->function_count; i++) {
+		Function* func = &module->functions[i];
+
+		if (func->param_count != arg_type_count)
+			continue;
+
+		if (name.data != func->name->string.data)
+			continue;
+
+		bool fail = false;
+		for (u32 i = 0; i < arg_type_count; i++) {
+			if (!can_implicit_cast(arg_types[i], func->params[i].type)) {
+				fail = true;
+				break;
+			}
+		}
+
+		if (fail)
+			continue;
+
+		return func;
+	}
+
+	return null;
+}
+
+typedef struct UserTypeResult { TypeKind kind; union { Struct* s; Enum* e; }; } UserTypeResult;
+
+static UserTypeResult find_usertype(ScanHelper* helper, String name) {
+	Module* module = helper->module;
+
+	for (u32 i = 0; i < module->struct_count; i++) {
+		Struct* st = &module->structs[i];
+
+		if (name.data != st->name->string.data)
+			continue;
+
+		return (UserTypeResult){ TYPE_KIND_STRUCT, { .s = st } };
+	}
+
+	for (u32 i = 0; i < module->enum_count; i++) {
+		Enum* en = &module->enums[i];
+
+		if (name.data != en->name->string.data)
+			continue;
+
+		return (UserTypeResult){ TYPE_KIND_ENUM, { .e = en } };
+	}
+
+	return (UserTypeResult){ };
+}
+
+static Struct* find_struct(ScanHelper* helper, String name) {
+	Module* module = helper->module;
+
+	for (u32 i = 0; i < module->struct_count; i++) {
+		Struct* st = &module->structs[i];
+
+		if (name.data != st->name->string.data)
+			continue;
+
+		return st;
+	}
+
+	return null;
+}
+
+static Enum* find_enum(ScanHelper* helper, String name) {
+	Module* module = helper->module;
+
+	for (u32 i = 0; i < module->enum_count; i++) {
+		Enum* en = &module->enums[i];
+
+		if (name.data != en->name->string.data)
+			continue;
+
+		return en;
+	}
+
+	return null;
+}
+
+static void scan_identifier(ScanHelper* helper, Expression* expr, Scope* scope) {
+	expr->flags |= EXPR_FLAG_REF;
+
+	if (expr->term.var) {
+		Variable* var = expr->term.var;
+		expr->type = var->type;
+		return;
+	}
+
+	String name = expr->term.token->identifier;
+
+	Scope* out_scope = null;
+	Variable* var = find_var(scope, name, &out_scope);
+
+	if (var)
+		errore(expr, 1, "Use of variable '%' before it's declaration.\n", arg_string(name));
+
+	errore(expr, 1, "Variable with name '%' does not exist.\n", arg_string(name));
+}
+
 static void scan_expression(ScanHelper* helper, Expression* expr, Scope* scope) {
+	switch (expr->kind) {
+		case EXPR_NULL:
+		case EXPR_TRUE:
+		case EXPR_FALSE:
+		case EXPR_LITERAL:
+		case EXPR_BASETYPE_PRIMITIVE:
+			break;
+
+		case EXPR_FUNCTION: {
+		} break;
+
+		case EXPR_BASETYPE_IDENTIFIER: {
+		} break;
+
+		case EXPR_IDENTIFIER_FORMAL: {
+			scan_identifier(helper, expr, scope);
+		} break;
+
+		case EXPR_IDENTIFIER_CONSTANT:
+		case EXPR_IDENTIFIER_VARIABLE: {
+			scan_identifier(helper, expr, scope);
+		} break;
+
+		case EXPR_ARRAY: {
+		} break;
+
+		case EXPR_TUPLE: {
+		} break;
+
+		case EXPR_SPEC_PTR: {
+		} break;
+
+		case EXPR_SPEC_ARRAY: {
+		} break;
+
+		case EXPR_SPEC_FIXED: {
+		} break;
+
+		case EXPR_UNARY_PTR:
+		case EXPR_UNARY_REF:
+		case EXPR_UNARY_ABS:
+		case EXPR_UNARY_INVERSE:
+		case EXPR_UNARY_NOT:
+		case EXPR_UNARY_BIT_NOT:
+		case EXPR_UNARY_IMPLICIT_CAST: {
+		} break;
+
+		case EXPR_BINARY_ADD: {
+			scan_expression(helper, expr->binary.left,  scope);
+			scan_expression(helper, expr->binary.right, scope);
+		};
+
+		case EXPR_BINARY_SUB: {
+			scan_expression(helper, expr->binary.left,  scope);
+			scan_expression(helper, expr->binary.right, scope);
+		};
+
+		case EXPR_BINARY_MUL: {
+			scan_expression(helper, expr->binary.left,  scope);
+			scan_expression(helper, expr->binary.right, scope);
+		};
+
+		case EXPR_BINARY_DIV: {
+			scan_expression(helper, expr->binary.left,  scope);
+			scan_expression(helper, expr->binary.right, scope);
+		};
+
+		case EXPR_BINARY_MOD: {
+			scan_expression(helper, expr->binary.left,  scope);
+			scan_expression(helper, expr->binary.right, scope);
+		};
+
+		case EXPR_BINARY_BIT_XOR: {
+			scan_expression(helper, expr->binary.left,  scope);
+			scan_expression(helper, expr->binary.right, scope);
+		};
+
+		case EXPR_BINARY_BIT_AND: {
+			scan_expression(helper, expr->binary.left,  scope);
+			scan_expression(helper, expr->binary.right, scope);
+		};
+
+		case EXPR_BINARY_BIT_OR:
+		case EXPR_BINARY_OR:
+		case EXPR_BINARY_AND:
+		case EXPR_BINARY_EQUAL:
+		case EXPR_BINARY_NOT_EQUAL:
+		case EXPR_BINARY_LESS:
+		case EXPR_BINARY_LESS_OR_EQUAL:
+		case EXPR_BINARY_GREATER:
+		case EXPR_BINARY_GREATER_OR_EQUAL:
+		case EXPR_BINARY_DOT_DOT:
+		case EXPR_BINARY_LSHIFT:
+		case EXPR_BINARY_RSHIFT: {
+			scan_expression(helper, expr->binary.left, scope);
+			scan_expression(helper, expr->binary.right, scope);
+		} break;
+
+		case EXPR_BINARY_DOT: {
+		} break;
+
+		case EXPR_BINARY_SPAN: {
+		} break;
+
+		case EXPR_CALL: {
+		} break;
+
+		case EXPR_INDEX: {
+		} break;
+
+		case EXPR_TERNARY_IF_ELSE: {
+		} break;
+
+	}
 }
 
 static void scan_variable(ScanHelper* helper, Variable* var, Scope* scope) {
+	if (var->type_expr)
+		scan_expression(helper, var->type_expr, scope);
+
+	if (var->init_expr)
+		scan_expression(helper, var->init_expr, scope);
+
+	// @Todo: Get TypeID from type_expr
 }
 
 static void scan_branch(ScanHelper* helper, Branch* branch, Scope* scope) {
@@ -92,7 +325,10 @@ static void scan_statement(ScanHelper* helper, Statement* statement, Code* code)
 			scan_controlflow(helper, &statement->controlflow, &code->scope);
 			break;
 
-		case STATEMENT_VARDECL:
+		case STATEMENT_VARDECL: {
+			scan_variable(helper, statement->var, &code->scope);
+		} break;
+
 		case STATEMENT_RETURN:
 		case STATEMENT_BREAK:
 		case STATEMENT_CONTINUE:
@@ -115,8 +351,11 @@ static void scan_function(ScanHelper* helper, Function* func) {
 
 static void scan_module(Module* module) {
 	ScanHelper helper = (ScanHelper){
+		.loop = null,
+		.module = module,
 	};
 
+	print("Scanning...\n");
 	for (u32 i = 0; i < module->function_count; i++) {
 		Function* func = &module->functions[i];
 		print("Scanning function '%'\n", arg_token(func->name));

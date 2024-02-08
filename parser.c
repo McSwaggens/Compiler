@@ -482,8 +482,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 			};
 
 			Scope* found_scope;
-			Variable* var = find_var(helper->scope, token->string, &found_scope);
-			left->term.var = var;
+			left->term.var = find_var(helper->scope, token->string, &found_scope);
 			left->flags |= EXPR_FLAG_REF;
 
 			token++;
@@ -1568,7 +1567,5 @@ static void parse_module(Module* module) {
 			}
 		}
 	}
-
-	scan_module(module);
 }
 

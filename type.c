@@ -30,13 +30,13 @@ static void init_type_system(void) {
 	*get_type(get_type_index(TYPE_EMPTY_TUPLE)) = (Type){ .size = 0, .length = 0 };
 }
 
-static inline u64 get_type_tuple_length(TypeID type) {
+static inline u64 get_tuple_length(TypeID type) {
 	assert(type);
 	assert(get_type_kind(type) == TYPE_KIND_TUPLE);
 	return get_type(type)->length;
 }
 
-static inline u64 get_type_fixed_length(TypeID type) {
+static inline u64 get_fixed_length(TypeID type) {
 	assert(type);
 	assert(get_type_kind(type) == TYPE_KIND_FIXED);
 	return get_type(type)->length;

@@ -1,9 +1,5 @@
-x : int = 0
-
-Foo(U: type_id, V: type_id) -> U:
-	a : U = 1
-	b : V = 2
-	a = 3
-	b = 4
-	x = 5
-
+Foo() -> int:
+	a : int = 1
+	b : int = 2
+	c : int = a + b + foobar
+	foobar : int
