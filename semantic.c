@@ -15,6 +15,27 @@ static bool can_implicit_cast(TypeID a, TypeID b) {
 	return false;
 }
 
+static bool can_coercive_cast(TypeID a, TypeID b) {
+	if (can_implicit_cast(a, b))
+		return true;
+
+	return false;
+}
+
+static bool can_explicit_cast(TypeID a, TypeID b) {
+	if (can_coercive_cast(a, b))
+		return true;
+
+	return false;
+}
+
+static bool can_force_cast(TypeID a, TypeID b) {
+	if (get_type_size(a) <= get_type_size(b))
+		return true;
+
+	return false;
+}
+
 static Function* find_function(ScanHelper* helper, String name, TypeID* arg_types, u32 arg_type_count) {
 	Module* module = helper->module;
 
@@ -101,8 +122,6 @@ static Enum* find_enum(ScanHelper* helper, String name) {
 }
 
 static void scan_identifier(ScanHelper* helper, Expression* expr, Scope* scope) {
-	expr->flags |= EXPR_FLAG_REF;
-
 	if (expr->term.var) {
 		Variable* var = expr->term.var;
 		expr->type = var->type;
@@ -120,6 +139,42 @@ static void scan_identifier(ScanHelper* helper, Expression* expr, Scope* scope) 
 	errore(expr, 1, "Variable with name '%' does not exist.\n", arg_string(name));
 }
 
+static void scan_array(ScanHelper* helper, Expression* expr, Scope* scope) {
+	for (u32 i = 0; i < expr->array.elem_count; i++) {
+		Expression* elem = expr->array.elems[i];
+		scan_expression(helper, elem, scope);
+	}
+}
+
+static void scan_tuple(ScanHelper* helper, Expression* expr, Scope* scope) {
+	TypeID types[expr->tuple.elem_count];
+
+	for (u32 i = 0; i < expr->tuple.elem_count; i++) {
+		Expression* elem = expr->tuple.elems[i];
+		scan_expression(helper, elem, scope);
+		types[i] = elem->type;
+	}
+
+	expr->type = get_tuple_type(types, expr->tuple.elem_count);
+}
+
+static void scan_formal_usertype_identifier(ScanHelper* helper, Expression* expr, Scope* scope) {
+	UserTypeResult utr = find_usertype(helper, expr->term.token->identifier);
+	expr->type = TYPE_TYPEID;
+
+	if (!utr.kind)
+		errore(expr, 3, "No such struct or enum called '%'.\n", arg_string(expr->term.token->identifier));
+
+	if (utr.kind == TYPE_KIND_STRUCT) {
+		expr->kind = EXPR_BASETYPE_STRUCT;
+		utr.s = utr.s;
+	}
+	else {
+		expr->kind = EXPR_BASETYPE_ENUM;
+		utr.e = utr.e;
+	}
+}
+
 static void scan_expression(ScanHelper* helper, Expression* expr, Scope* scope) {
 	switch (expr->kind) {
 		case EXPR_NULL:
@@ -127,16 +182,14 @@ static void scan_expression(ScanHelper* helper, Expression* expr, Scope* scope) 
 		case EXPR_FALSE:
 		case EXPR_LITERAL:
 		case EXPR_BASETYPE_PRIMITIVE:
+		case EXPR_BASETYPE_STRUCT:
+		case EXPR_BASETYPE_ENUM:
+		case EXPR_FUNCTION:
+		case EXPR_UNARY_IMPLICIT_CAST:
 			break;
 
-		case EXPR_FUNCTION: {
-		} break;
-
-		case EXPR_BASETYPE_IDENTIFIER: {
-		} break;
-
 		case EXPR_IDENTIFIER_FORMAL: {
-			scan_identifier(helper, expr, scope);
+			scan_formal_usertype_identifier(helper, expr, scope);
 		} break;
 
 		case EXPR_IDENTIFIER_CONSTANT:
@@ -145,18 +198,24 @@ static void scan_expression(ScanHelper* helper, Expression* expr, Scope* scope) 
 		} break;
 
 		case EXPR_ARRAY: {
+			scan_array(helper, expr, scope);
 		} break;
 
 		case EXPR_TUPLE: {
+			scan_tuple(helper, expr, scope);
 		} break;
 
 		case EXPR_SPEC_PTR: {
+			scan_expression(helper, expr->specifier.sub, scope);
 		} break;
 
 		case EXPR_SPEC_ARRAY: {
+			scan_expression(helper, expr->specifier.sub, scope);
 		} break;
 
 		case EXPR_SPEC_FIXED: {
+			scan_expression(helper, expr->specifier.length, scope);
+			scan_expression(helper, expr->specifier.sub, scope);
 		} break;
 
 		case EXPR_UNARY_PTR:
@@ -164,8 +223,7 @@ static void scan_expression(ScanHelper* helper, Expression* expr, Scope* scope) 
 		case EXPR_UNARY_ABS:
 		case EXPR_UNARY_INVERSE:
 		case EXPR_UNARY_NOT:
-		case EXPR_UNARY_BIT_NOT:
-		case EXPR_UNARY_IMPLICIT_CAST: {
+		case EXPR_UNARY_BIT_NOT: {
 		} break;
 
 		case EXPR_BINARY_ADD: {
@@ -296,7 +354,14 @@ static void scan_controlflow(ScanHelper* helper, ControlFlow* controlflow, Scope
 
 static void scan_assignment(ScanHelper* helper, Assignment* assignment, Code* code) {
 	scan_expression(helper, assignment->left, &code->scope);
+
+	if (!(assignment->left->flags & EXPR_FLAG_REF))
+		errore(assignment->left, 3, "Expression is not assignable.\n");
+
 	scan_expression(helper, assignment->right, &code->scope);
+
+	if (!can_coercive_cast(assignment->left->type, assignment->right->type))
+		errore(assignment->right, 3, "Cannot convert type '%' to '%'\n", arg_type(assignment->right->type), arg_type(assignment->left->type));
 }
 
 static void scan_statement(ScanHelper* helper, Statement* statement, Code* code) {
@@ -313,9 +378,9 @@ static void scan_statement(ScanHelper* helper, Statement* statement, Code* code)
 		case STATEMENT_ASSIGNMENT_MUL:
 		case STATEMENT_ASSIGNMENT_BIT_XOR:
 		case STATEMENT_ASSIGNMENT_BIT_AND:
-		case STATEMENT_ASSIGNMENT_BIT_OR:
+		case STATEMENT_ASSIGNMENT_BIT_OR: {
 			scan_assignment(helper, &statement->assign, code);
-			break;
+		} break;
 
 		case STATEMENT_EXPRESSION:
 			scan_expression(helper, statement->expr, &code->scope);

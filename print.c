@@ -343,9 +343,16 @@ static void write_expression(OutputBuffer* buffer, Expression* expr) {
 		case EXPR_FALSE:
 		case EXPR_NULL:
 		case EXPR_BASETYPE_PRIMITIVE:
-		case EXPR_BASETYPE_IDENTIFIER:
 		case EXPR_LITERAL: {
 			write_token(buffer, expr->term.token);
+		} break;
+
+		case EXPR_BASETYPE_STRUCT: {
+			write_string(buffer, expr->term.user_struct->name->identifier);
+		} break;
+
+		case EXPR_BASETYPE_ENUM: {
+			write_string(buffer, expr->term.user_enum->name->identifier);
 		} break;
 
 		case EXPR_FUNCTION: {

@@ -56,9 +56,10 @@ enum ExpressionKind {
 	EXPR_TRUE,
 	EXPR_FALSE,
 	EXPR_LITERAL,
-	EXPR_FUNCTION, // term.name, term.func
+	EXPR_FUNCTION, // (parser.c)term.token, (semantic.c)term.func
 	EXPR_BASETYPE_PRIMITIVE,
-	EXPR_BASETYPE_IDENTIFIER,
+	EXPR_BASETYPE_STRUCT,
+	EXPR_BASETYPE_ENUM,
 	EXPR_IDENTIFIER_CONSTANT,
 	EXPR_IDENTIFIER_FORMAL,
 	EXPR_IDENTIFIER_VARIABLE,
@@ -68,7 +69,6 @@ enum ExpressionKind {
 	EXPR_SPEC_ARRAY,              //  []e
 	EXPR_SPEC_FIXED,              // [N]e
 	EXPR_UNARY_PTR,               // *e
-	EXPR_UNARY_REF,               // v
 	EXPR_UNARY_ABS,               // +e
 	EXPR_UNARY_INVERSE,           // -e
 	EXPR_UNARY_NOT,               // !e
@@ -228,8 +228,12 @@ struct Expression {
 		} specifier;
 
 		struct {
-			Variable* var;
-			Function* func;
+			union {
+				Variable* var;
+				Function* func;
+				Struct* user_struct;
+				Enum* user_enum;
+			};
 			Token* token;
 		} term;
 
