@@ -60,6 +60,8 @@ struct Trigger {
 };
 
 struct Value {
+	bool is_const;
+
 	u16 relation_count;
 	u16 relation_capacity;
 	Relation* relations;
@@ -92,6 +94,8 @@ static bool    ir_context_check_for_key(Context* context, Key key);
 static void    ir_context_add(Context* context, Key key);
 static void    ir_context_free(Context context);
 static Context ir_context_duplicate(Context context);
+
+static u64 ir_get_const_int(V32 v);
 
 static V32 ir_int(u64 n);
 static V32 ir_f32(f32 n);

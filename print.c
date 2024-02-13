@@ -143,8 +143,8 @@ static void write_token_kind(OutputBuffer* buffer, TokenKind kind) {
 		case TOKEN_UINT16:              str = "uint16";   break;
 		case TOKEN_UINT32:              str = "uint32";   break;
 		case TOKEN_UINT64:              str = "uint64";   break;
-		case TOKEN_FLOAT32:             str = "f32";  break;
-		case TOKEN_FLOAT64:             str = "f64";  break;
+		case TOKEN_FLOAT32:             str = "float32";  break;
+		case TOKEN_FLOAT64:             str = "float64";  break;
 		case TOKEN_TYPE_ID:             str = "type_id";  break;
 
 		case TOKEN_STRUCT:              str = "struct";   break;
@@ -277,8 +277,8 @@ static void write_type(OutputBuffer* buffer, TypeID type) {
 				case TYPE_UINT32:  write_cstring(buffer, "uint32");  break;
 				case TYPE_UINT64:  write_cstring(buffer, "uint64");  break;
 
-				case TYPE_FLOAT32: write_cstring(buffer, "f32"); break;
-				case TYPE_FLOAT64: write_cstring(buffer, "f64"); break;
+				case TYPE_FLOAT32: write_cstring(buffer, "float32"); break;
+				case TYPE_FLOAT64: write_cstring(buffer, "float64"); break;
 			}
 		} return;
 
@@ -336,8 +336,10 @@ static void write_expression(OutputBuffer* buffer, Expression* expr) {
 		return;
 	}
 
+	// print("(kind = %)", arg_s32(expr->kind));
+
 	switch (expr->kind) {
-		default: assert_unreachable();
+		// default: assert_unreachable();
 
 		case EXPR_TRUE:
 		case EXPR_FALSE:
@@ -385,13 +387,14 @@ static void write_expression(OutputBuffer* buffer, Expression* expr) {
 			write_expression(buffer, expr->specifier.sub);
 		} break;
 
-		case EXPR_UNARY_IMPLICIT_CAST:
+		case EXPR_UNARY_IMPLICIT_CAST: {
 			write_cstring(buffer, "(");
 			write_expression(buffer, expr->unary.sub);
 			write_cstring(buffer, " IMPLICIT_CAST ");
 			write_cstring(buffer, " TODO_TYPE_VALUE_PRINTING");
 			// write_type(buffer, expr->type);
 			write_cstring(buffer, ")");
+		} break;
 
 		case EXPR_UNARY_PTR:
 		case EXPR_UNARY_REF:
@@ -399,10 +402,10 @@ static void write_expression(OutputBuffer* buffer, Expression* expr) {
 		case EXPR_UNARY_INVERSE:
 		case EXPR_UNARY_NOT:
 		case EXPR_UNARY_BIT_NOT: {
-			write_char(buffer, '(');
+			// write_char(buffer, '(');
 			write_token(buffer, expr->unary.optoken);
 			write_expression(buffer, expr->unary.sub);
-			write_char(buffer, ')');
+			// write_char(buffer, ')');
 		} break;
 
 		case EXPR_BINARY_ADD:

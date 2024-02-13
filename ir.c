@@ -11,9 +11,9 @@ static ProcedureList procedures;
 // -------------------------------------------------- //
 
 static void init_ir(void) {
-	value_table_index_head = 4;
-	for (s64 i = IR_PRELOAD_BEGIN; i <= IR_PRELOAD_BEGIN; i++) {
-		*ir_get_value(ir_int(i)) = (Value){ .const_int = i };
+	value_table_index_head = IR_PRELOAD_END+1;
+	for (s64 i = IR_PRELOAD_BEGIN; i <= IR_PRELOAD_END; i++) {
+		*ir_get_value(ir_int(i)) = (Value){ .const_int = i, .is_const = true };
 	}
 }
 
@@ -118,7 +118,8 @@ static ConstHashTableNode* const_hash_table[CONST_HASH_TABLE_SIZE] = { 0 };
 
 static V32 ir_int(u64 n) {
 	if ((s64)n >= IR_PRELOAD_BEGIN && (s64)n <= IR_PRELOAD_END) {
-		return 1+n+abs(IR_PRELOAD_BEGIN);
+		V32 result = 1+n+abs(IR_PRELOAD_BEGIN);
+		return result;
 	}
 
 	ConstHashTableNode** ppnode = &const_hash_table[hash64(n) & CONST_HASH_TABLE_MASK];
@@ -133,6 +134,7 @@ static V32 ir_int(u64 n) {
 
 	V32 id = ir_make_value();
 	*ir_get_value(id) = (Value) {
+		.is_const = true,
 		.const_int = n,
 	};
 
@@ -217,6 +219,12 @@ static bool is_contained_in_context(Context* context, Key key) {
 	}
 
 	return false;
+}
+
+static u64 ir_get_const_int(V32 v) {
+	Value* pval = ir_get_value(v);
+	assert(pval->is_const);
+	return pval->const_int;
 }
 
 // -------------------------------------------------- //

@@ -1098,7 +1098,7 @@ static void lex(Module* module) {
 
 	module->tokens_end = lexer.head;
 
-	print("Tokens:");
+	print("Tokens:\n");
 	for (Token* token = lexer.tokens_begin; token < lexer.head; token++) {
 		print("%| % | %\n", arg_cstring((token->flags & NEWLINE) ? "\n--" : "  "), arg_u16(token->indent), arg_token(token));
 	}

@@ -1,12 +1,39 @@
 #include "semantic.h"
 #include "ast.h"
 
-static void scan_expression(ScanHelper* helper,  Expression* expr, Scope* scope);
-static void scan_assignment(ScanHelper* helper, Assignment* assignment, Code* code);
-static void scan_controlflow(ScanHelper* helper, ControlFlow* controlflow, Scope* scope);
-static void scan_statement(ScanHelper* helper,   Statement* statement, Code* code);
-static void scan_code(ScanHelper* helper,        Code* code);
-static void scan_function(ScanHelper* helper,    Function* func);
+static void scan_expression(ScanHelper* helper, Scope* scope, Expression* expr);
+static void scan_assignment(ScanHelper* helper, Code* code, Assignment* assignment);
+static void scan_controlflow(ScanHelper* helper, Scope* scope, ControlFlow* controlflow);
+static void scan_statement(ScanHelper* helper, Code* code, Statement* statement);
+static void scan_code(ScanHelper* helper, Code* code);
+static void scan_function(ScanHelper* helper, Function* func);
+
+static void insert_cast_expression(ScanHelper* helper, Expression** pexpr, TypeID to) {
+	Expression* expr = *pexpr;
+
+	Expression* result = alloc_expression();
+	*result = (Expression){
+		.kind = EXPR_UNARY_IMPLICIT_CAST,
+		.unary.sub = expr,
+		.type = to,
+		.begin = expr->begin,
+		.end = expr->end,
+		.scope = expr->scope,
+	};
+
+	*pexpr = result;
+}
+
+static void cast_to_integral_type(ScanHelper* helper, Expression** pexpr) {
+	Expression* expr = *pexpr;
+	Module* module = helper->module;
+
+	assert(expr->type);
+
+	if (expr->type == TYPE_BOOL) {
+		insert_cast_expression(helper, pexpr, TYPE_INT8);
+	}
+}
 
 static bool can_implicit_cast(TypeID a, TypeID b) {
 	if (a == b)
@@ -121,10 +148,11 @@ static Enum* find_enum(ScanHelper* helper, String name) {
 	return null;
 }
 
-static void scan_identifier(ScanHelper* helper, Expression* expr, Scope* scope) {
+static void scan_identifier(ScanHelper* helper, Scope* scope, Expression* expr) {
 	if (expr->term.var) {
 		Variable* var = expr->term.var;
 		expr->type = var->type;
+		print("var->type = %\n", arg_type(var->type));
 		return;
 	}
 
@@ -139,26 +167,26 @@ static void scan_identifier(ScanHelper* helper, Expression* expr, Scope* scope) 
 	errore(expr, 1, "Variable with name '%' does not exist.\n", arg_string(name));
 }
 
-static void scan_array(ScanHelper* helper, Expression* expr, Scope* scope) {
+static void scan_array(ScanHelper* helper, Scope* scope, Expression* expr) {
 	for (u32 i = 0; i < expr->array.elem_count; i++) {
 		Expression* elem = expr->array.elems[i];
-		scan_expression(helper, elem, scope);
+		scan_expression(helper, scope, elem);
 	}
 }
 
-static void scan_tuple(ScanHelper* helper, Expression* expr, Scope* scope) {
+static void scan_tuple(ScanHelper* helper, Scope* scope, Expression* expr) {
 	TypeID types[expr->tuple.elem_count];
 
 	for (u32 i = 0; i < expr->tuple.elem_count; i++) {
 		Expression* elem = expr->tuple.elems[i];
-		scan_expression(helper, elem, scope);
+		scan_expression(helper, scope, elem);
 		types[i] = elem->type;
 	}
 
 	expr->type = get_tuple_type(types, expr->tuple.elem_count);
 }
 
-static void scan_formal_usertype_identifier(ScanHelper* helper, Expression* expr, Scope* scope) {
+static void scan_formal_usertype_identifier(ScanHelper* helper, Scope* scope, Expression* expr) {
 	UserTypeResult utr = find_usertype(helper, expr->term.token->identifier);
 	expr->type = TYPE_TYPEID;
 
@@ -175,7 +203,53 @@ static void scan_formal_usertype_identifier(ScanHelper* helper, Expression* expr
 	}
 }
 
-static void scan_expression(ScanHelper* helper, Expression* expr, Scope* scope) {
+static void scan_unary_ptr(ScanHelper* helper, Scope* scope, Expression* expr) {
+	scan_expression(helper, scope, expr->unary.sub);
+	Expression* sub = expr->unary.sub;
+	assert(sub->type);
+
+	if (sub->type == TYPE_TYPEID && (sub->flags & EXPR_FLAG_CONSTANT)) {
+		Value* v = ir_get_value(sub->value);
+		assert(sub->value);
+		assert(v->is_const);
+		TypeID subtype = v->const_int;
+		TypeID newtype = get_ptr_type(subtype);
+
+		*expr = (Expression) {
+			.kind  = EXPR_SPEC_PTR,
+			.flags = expr->flags,
+			.type  = TYPE_TYPEID,
+			.value = ir_int(newtype),
+
+			.specifier = {
+				.sub    = sub,
+				.length = null,
+			},
+		};
+
+		return;
+	}
+
+	if (!(sub->flags & EXPR_FLAG_REF))
+		errore(sub, 3, "Expression must be referential.\n");
+
+	expr->type = get_ptr_type(sub->type);
+
+	// Set expr->value
+}
+
+static void scan_unary_ref(ScanHelper* helper, Scope* scope, Expression* expr) {
+	Expression* sub = expr->unary.sub;
+	scan_expression(helper, scope, sub);
+
+	if (!is_ptr(sub->type))
+		errore(sub, 3, "Expression must be a pointer.\n");
+
+	expr->type = get_subtype(sub->type);
+}
+
+static void scan_expression(ScanHelper* helper, Scope* scope, Expression* expr) {
+	// print("expr = %\n", arg_expression(expr));
 	switch (expr->kind) {
 		case EXPR_NULL:
 		case EXPR_TRUE:
@@ -189,37 +263,43 @@ static void scan_expression(ScanHelper* helper, Expression* expr, Scope* scope) 
 			break;
 
 		case EXPR_IDENTIFIER_FORMAL: {
-			scan_formal_usertype_identifier(helper, expr, scope);
+			scan_formal_usertype_identifier(helper, scope, expr);
 		} break;
 
 		case EXPR_IDENTIFIER_CONSTANT:
 		case EXPR_IDENTIFIER_VARIABLE: {
-			scan_identifier(helper, expr, scope);
+			scan_identifier(helper, scope, expr);
 		} break;
 
 		case EXPR_ARRAY: {
-			scan_array(helper, expr, scope);
+			scan_array(helper, scope, expr);
 		} break;
 
 		case EXPR_TUPLE: {
-			scan_tuple(helper, expr, scope);
+			scan_tuple(helper, scope, expr);
 		} break;
 
 		case EXPR_SPEC_PTR: {
-			scan_expression(helper, expr->specifier.sub, scope);
+			scan_expression(helper, scope, expr->specifier.sub);
 		} break;
 
 		case EXPR_SPEC_ARRAY: {
-			scan_expression(helper, expr->specifier.sub, scope);
+			scan_expression(helper, scope, expr->specifier.sub);
 		} break;
 
 		case EXPR_SPEC_FIXED: {
-			scan_expression(helper, expr->specifier.length, scope);
-			scan_expression(helper, expr->specifier.sub, scope);
+			scan_expression(helper, scope, expr->specifier.length);
+			scan_expression(helper, scope, expr->specifier.sub);
 		} break;
 
-		case EXPR_UNARY_PTR:
-		case EXPR_UNARY_REF:
+		case EXPR_UNARY_PTR: {
+			scan_unary_ptr(helper, scope, expr);
+		} break;
+
+		case EXPR_UNARY_REF: {
+			scan_unary_ref(helper, scope, expr);
+		} break;
+
 		case EXPR_UNARY_ABS:
 		case EXPR_UNARY_INVERSE:
 		case EXPR_UNARY_NOT:
@@ -227,38 +307,24 @@ static void scan_expression(ScanHelper* helper, Expression* expr, Scope* scope) 
 		} break;
 
 		case EXPR_BINARY_ADD: {
-			scan_expression(helper, expr->binary.left,  scope);
-			scan_expression(helper, expr->binary.right, scope);
 		};
 
 		case EXPR_BINARY_SUB: {
-			scan_expression(helper, expr->binary.left,  scope);
-			scan_expression(helper, expr->binary.right, scope);
 		};
 
 		case EXPR_BINARY_MUL: {
-			scan_expression(helper, expr->binary.left,  scope);
-			scan_expression(helper, expr->binary.right, scope);
 		};
 
 		case EXPR_BINARY_DIV: {
-			scan_expression(helper, expr->binary.left,  scope);
-			scan_expression(helper, expr->binary.right, scope);
 		};
 
 		case EXPR_BINARY_MOD: {
-			scan_expression(helper, expr->binary.left,  scope);
-			scan_expression(helper, expr->binary.right, scope);
 		};
 
 		case EXPR_BINARY_BIT_XOR: {
-			scan_expression(helper, expr->binary.left,  scope);
-			scan_expression(helper, expr->binary.right, scope);
 		};
 
 		case EXPR_BINARY_BIT_AND: {
-			scan_expression(helper, expr->binary.left,  scope);
-			scan_expression(helper, expr->binary.right, scope);
 		};
 
 		case EXPR_BINARY_BIT_OR:
@@ -273,8 +339,8 @@ static void scan_expression(ScanHelper* helper, Expression* expr, Scope* scope) 
 		case EXPR_BINARY_DOT_DOT:
 		case EXPR_BINARY_LSHIFT:
 		case EXPR_BINARY_RSHIFT: {
-			scan_expression(helper, expr->binary.left, scope);
-			scan_expression(helper, expr->binary.right, scope);
+			scan_expression(helper, scope, expr->binary.left);
+			scan_expression(helper, scope, expr->binary.right);
 		} break;
 
 		case EXPR_BINARY_DOT: {
@@ -293,19 +359,28 @@ static void scan_expression(ScanHelper* helper, Expression* expr, Scope* scope) 
 		} break;
 
 	}
+
+	assert(expr->type);
 }
 
-static void scan_variable(ScanHelper* helper, Variable* var, Scope* scope) {
-	if (var->type_expr)
-		scan_expression(helper, var->type_expr, scope);
+static void scan_variable(ScanHelper* helper, Scope* scope, Variable* var) {
+	if (var->type_expr) {
+		// print("var->type_expr\n");
+		scan_expression(helper, scope, var->type_expr);
+		var->type = ir_get_const_int(var->type_expr->value);
+	}
 
-	if (var->init_expr)
-		scan_expression(helper, var->init_expr, scope);
+	if (var->init_expr) {
+		// print("var->init_expr\n");
+		scan_expression(helper, scope, var->init_expr);
+
+		// if ((var->init_expr->flags & EXPR_FLAG_CONSTANT)
+	}
 
 	// @Todo: Get TypeID from type_expr
 }
 
-static void scan_branch(ScanHelper* helper, Branch* branch, Scope* scope) {
+static void scan_branch(ScanHelper* helper, Scope* scope, Branch* branch) {
 	bool is_branch = false;
 
 	switch (branch->branch_kind) {
@@ -313,24 +388,24 @@ static void scan_branch(ScanHelper* helper, Branch* branch, Scope* scope) {
 		} break;
 
 		case BRANCH_IF: {
-			scan_expression(helper, branch->cond, scope); // @Todo: Convert to bool
+			scan_expression(helper, scope, branch->cond); // @Todo: Convert to bool
 		} break;
 
 		case BRANCH_FOR: {
 			is_branch = true;
-			scan_variable(helper, branch->var, scope);
-			scan_expression(helper, branch->cond, scope); // @Todo: Convert to bool
-			scan_expression(helper, branch->nextval, scope); // @Todo: Check if nextval type can be converted to branch->var->type
+			scan_variable(helper, scope, branch->var);
+			scan_expression(helper, scope, branch->cond); // @Todo: Convert to bool
+			scan_expression(helper, scope, branch->nextval); // @Todo: Check if nextval type can be converted to branch->var->type
 		} break;
 
 		case BRANCH_WHILE: {
 			is_branch = true;
-			scan_expression(helper, branch->cond, scope); // @Todo: Convert to bool
+			scan_expression(helper, scope, branch->cond); // @Todo: Convert to bool
 		} break;
 
 		case BRANCH_MATCH: {
 			is_branch = true;
-			scan_expression(helper, branch->cond, scope);
+			scan_expression(helper, scope, branch->cond);
 		} break;
 	}
 
@@ -345,26 +420,26 @@ static void scan_branch(ScanHelper* helper, Branch* branch, Scope* scope) {
 	helper->loop = last_loop;
 }
 
-static void scan_controlflow(ScanHelper* helper, ControlFlow* controlflow, Scope* scope) {
+static void scan_controlflow(ScanHelper* helper, Scope* scope, ControlFlow* controlflow) {
 	for (u32 i = 0; i < controlflow->branch_count; i++) {
 		Branch* branch = &controlflow->branches[i];
-		scan_branch(helper, branch, scope);
+		scan_branch(helper, scope, branch);
 	}
 }
 
-static void scan_assignment(ScanHelper* helper, Assignment* assignment, Code* code) {
-	scan_expression(helper, assignment->left, &code->scope);
+static void scan_assignment(ScanHelper* helper, Code* code, Assignment* assignment) {
+	scan_expression(helper, &code->scope, assignment->left);
 
 	if (!(assignment->left->flags & EXPR_FLAG_REF))
 		errore(assignment->left, 3, "Expression is not assignable.\n");
 
-	scan_expression(helper, assignment->right, &code->scope);
+	scan_expression(helper, &code->scope, assignment->right);
 
 	if (!can_coercive_cast(assignment->left->type, assignment->right->type))
 		errore(assignment->right, 3, "Cannot convert type '%' to '%'\n", arg_type(assignment->right->type), arg_type(assignment->left->type));
 }
 
-static void scan_statement(ScanHelper* helper, Statement* statement, Code* code) {
+static void scan_statement(ScanHelper* helper, Code* code, Statement* statement) {
 	switch (statement->kind) {
 		default: assert_unreachable();
 
@@ -379,19 +454,19 @@ static void scan_statement(ScanHelper* helper, Statement* statement, Code* code)
 		case STATEMENT_ASSIGNMENT_BIT_XOR:
 		case STATEMENT_ASSIGNMENT_BIT_AND:
 		case STATEMENT_ASSIGNMENT_BIT_OR: {
-			scan_assignment(helper, &statement->assign, code);
+			scan_assignment(helper, code, &statement->assign);
 		} break;
 
-		case STATEMENT_EXPRESSION:
-			scan_expression(helper, statement->expr, &code->scope);
-			break;
+		case STATEMENT_EXPRESSION: {
+			scan_expression(helper, &code->scope, statement->expr);
+		} break;
 
-		case STATEMENT_CONTROLFLOW:
-			scan_controlflow(helper, &statement->controlflow, &code->scope);
-			break;
+		case STATEMENT_CONTROLFLOW: {
+			scan_controlflow(helper, &code->scope, &statement->controlflow);
+		} break;
 
 		case STATEMENT_VARDECL: {
-			scan_variable(helper, statement->var, &code->scope);
+			scan_variable(helper, &code->scope, statement->var);
 		} break;
 
 		case STATEMENT_RETURN:
@@ -406,7 +481,7 @@ static void scan_statement(ScanHelper* helper, Statement* statement, Code* code)
 static void scan_code(ScanHelper* helper, Code* code) {
 	for (u32 i = 0; i < code->statement_count; i++) {
 		Statement* statement = &code->statements[i];
-		scan_statement(helper, statement, code);
+		scan_statement(helper, code, statement);
 	}
 }
 

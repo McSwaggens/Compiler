@@ -69,6 +69,7 @@ enum ExpressionKind {
 	EXPR_SPEC_ARRAY,              //  []e
 	EXPR_SPEC_FIXED,              // [N]e
 	EXPR_UNARY_PTR,               // *e
+	EXPR_UNARY_REF,               // @e
 	EXPR_UNARY_ABS,               // +e
 	EXPR_UNARY_INVERSE,           // -e
 	EXPR_UNARY_NOT,               // !e

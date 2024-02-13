@@ -248,8 +248,10 @@ static bool is_ptr(TypeID type) {
 }
 
 static bool is_specifier(TypeID type) {
-	switch (type) {
-		default: assert_unreachable();
+	switch (get_type_kind(type)) {
+		default:
+			// print("is_specifier(%)\n", arg_type(type));
+			assert_unreachable();
 
 		case TYPE_KIND_PTR:
 		case TYPE_KIND_ARRAY:

@@ -588,7 +588,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 				.kind = EXPR_BASETYPE_PRIMITIVE,
 				.flags = EXPR_FLAG_CONSTANT,
 				.type = TYPE_TYPEID,
-				.value = type_lut[token->kind],
+				.value = ir_int(type_lut[token->kind]),
 				.term.token = token,
 			};
 			token++;
@@ -1479,33 +1479,6 @@ static Token* parse_function(Module* module, Token* token, Indent16 indent) {
 	module->functions[module->function_count++] = func;
 
 	return token;
-}
-
-static void fix_variables(Module* module) {
-	// for (u32 i = 0; i < module->unknown_vars.count; i++) {
-	// 	Expression* expr = module->unknown_vars.expressions[i];
-
-	// 	String name = expr->term.token->identifier;
-
-	// 	assert(expr->term.token);
-
-	// 	Scope* found_scope;
-	// 	Variable* var = find_var(&module->scope, name, &found_scope);
-	// 	expr->term.var = var;
-
-	// 	if (var) {
-	// 		print("Successfully found variable '%'\n", arg_string(name));
-	// 		continue;
-	// 	}
-
-	// 	var = find_var(expr->scope, name, &found_scope);
-
-	// 	if (var) {
-	// 		errore(expr, 0, "Variable '%' was used before it's declaration\n", arg_string(name));
-	// 	}
-
-	// 	errore(expr, 0, "Variable '%' doesn't exist\n", arg_string(name));
-	// }
 }
 
 static void parse_module(Module* module) {
