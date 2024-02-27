@@ -5,7 +5,7 @@
 static MNode mm_node_block[MM_NODE_BLOCK_LENGTH];
 static M32 mm_node_head;
 
-static void init_mm(void) {
+static void mm_init(void) {
 	mm_node_head = 1;
 }
 

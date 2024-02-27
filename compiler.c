@@ -66,18 +66,18 @@ static Position get_pos(Module* module, Token* token) {
 	return get_aux(module, token)->pos;
 }
 
-static void init_module_store(void) {
+static void module_store_init(void) {
 	module_store.capacity = 64;
 	module_store.count    = 0;
 	module_store.modules  = alloc(sizeof(Module*)*module_store.capacity);
 }
 
 int main(int argc, char* argv[]) {
-	init_global_allocator();
-	init_type_system();
-	init_module_store();
-	init_ir();
-	init_mm();
+	ga_init();
+	ts_init();
+	module_store_init();
+	ir_init();
+	mm_init();
 
 	list_dir(".");
 

@@ -175,7 +175,7 @@ static u64 ga_size_to_index(u64 size) {
 	return count_trailing_zeroes64(size);
 }
 
-static void init_global_allocator(void) {
+static void ga_init(void) {
 	zero(&global_allocator, sizeof(struct GlobalAllocator));
 }
 

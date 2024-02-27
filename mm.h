@@ -24,7 +24,7 @@ struct MNode {
 	Context condition;
 };
 
-static void init_mm(void);
+static void mm_init(void);
 static inline MNode* mm_get(M32 mid);
 static M32 mm_make_load(M32 prev, V32 addr, V32 size);
 static M32 mm_make_store(M32 prev, V32 addr, V32 value, V32 size);

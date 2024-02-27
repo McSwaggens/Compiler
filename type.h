@@ -82,7 +82,7 @@ struct Type {
 	XTable xtable;
 };
 
-static void init_type_system(void);
+static void ts_init(void);
 static inline TypeKind get_type_kind(TypeID id);
 static inline u32 get_type_index(TypeID id);
 static inline Type* get_type(TypeID id);

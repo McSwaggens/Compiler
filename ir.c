@@ -10,7 +10,7 @@ static ProcedureList procedures;
 
 // -------------------------------------------------- //
 
-static void init_ir(void) {
+static void ir_init(void) {
 	value_table_index_head = IR_PRELOAD_END+1;
 	for (s64 i = IR_PRELOAD_BEGIN; i <= IR_PRELOAD_END; i++) {
 		*ir_get_value(ir_int(i)) = (Value){ .const_int = i, .is_const = true };

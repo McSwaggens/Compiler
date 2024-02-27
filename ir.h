@@ -84,7 +84,7 @@ struct ProcedureList {
 	u32 capacity;
 };
 
-static void init_ir(void);
+static void ir_init(void);
 static void ir_relate(V32 v, Relation rel);
 static V32 ir_make_value(void);
 static inline Value* ir_get_value(V32 id);

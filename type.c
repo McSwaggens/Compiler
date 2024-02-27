@@ -10,7 +10,7 @@ static inline u32      get_type_index(TypeID id) { return id & ((1llu<<TYPEID_IN
 static inline Type*    get_type(TypeID id)       { return type_table + get_type_index(id); }
 static inline u64      get_type_size(TypeID id)  { return get_type(id)->size; }
 
-static void init_type_system(void) {
+static void ts_init(void) {
 	type_table_head_index = LARGEST_CORE_TYPE_INDEX+1;
 
 	*get_type(TYPE_BYTE)    = (Type){ .size = 1 };
