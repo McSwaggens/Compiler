@@ -258,9 +258,9 @@ static void write_type(OutputBuffer* buffer, TypeID type) {
 		return;
 	}
 
-	Type* info = get_type(type);
+	Type* info = ts_get_type(type);
 
-	switch (get_type_kind(type)) {
+	switch (ts_get_kind(type)) {
 		case TYPE_KIND_PRIMITIVE: {
 			switch ((PrimitiveType)type) {
 				case TYPE_BYTE:    write_cstring(buffer, "byte");    break;
@@ -320,7 +320,7 @@ static void write_type(OutputBuffer* buffer, TypeID type) {
 		} break;
 
 		case TYPE_KIND_FUNCTION: {
-			bool is_input_tuple = get_type_kind(info->input) == TYPE_KIND_TUPLE;
+			bool is_input_tuple = ts_get_kind(info->input) == TYPE_KIND_TUPLE;
 			if (!is_input_tuple) write_char(buffer, '(');
 			write_type(buffer, info->input);
 			if (!is_input_tuple) write_char(buffer, ')');

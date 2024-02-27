@@ -57,7 +57,7 @@ static bool can_explicit_cast(TypeID a, TypeID b) {
 }
 
 static bool can_force_cast(TypeID a, TypeID b) {
-	if (get_type_size(a) <= get_type_size(b))
+	if (ts_get_size(a) <= ts_get_size(b))
 		return true;
 
 	return false;
@@ -183,7 +183,7 @@ static void scan_tuple(ScanHelper* helper, Scope* scope, Expression* expr) {
 		types[i] = elem->type;
 	}
 
-	expr->type = get_tuple_type(types, expr->tuple.elem_count);
+	expr->type = ts_get_tuple(types, expr->tuple.elem_count);
 }
 
 static void scan_formal_usertype_identifier(ScanHelper* helper, Scope* scope, Expression* expr) {
@@ -213,7 +213,7 @@ static void scan_unary_ptr(ScanHelper* helper, Scope* scope, Expression* expr) {
 		assert(sub->value);
 		assert(v->is_const);
 		TypeID subtype = v->const_int;
-		TypeID newtype = get_ptr_type(subtype);
+		TypeID newtype = ts_get_ptr(subtype);
 
 		*expr = (Expression) {
 			.kind  = EXPR_SPEC_PTR,
@@ -233,7 +233,7 @@ static void scan_unary_ptr(ScanHelper* helper, Scope* scope, Expression* expr) {
 	if (!(sub->flags & EXPR_FLAG_REF))
 		errore(sub, 3, "Expression must be referential.\n");
 
-	expr->type = get_ptr_type(sub->type);
+	expr->type = ts_get_ptr(sub->type);
 
 	// Set expr->value
 }
@@ -242,10 +242,10 @@ static void scan_unary_ref(ScanHelper* helper, Scope* scope, Expression* expr) {
 	Expression* sub = expr->unary.sub;
 	scan_expression(helper, scope, sub);
 
-	if (!is_ptr(sub->type))
+	if (!ts_is_ptr(sub->type))
 		errore(sub, 3, "Expression must be a pointer.\n");
 
-	expr->type = get_subtype(sub->type);
+	expr->type = ts_get_subtype(sub->type);
 }
 
 static void scan_expression(ScanHelper* helper, Scope* scope, Expression* expr) {
@@ -307,6 +307,12 @@ static void scan_expression(ScanHelper* helper, Scope* scope, Expression* expr) 
 		} break;
 
 		case EXPR_BINARY_ADD: {
+			// *T + uint
+			// float64 + float64
+			// float32 + float32
+			// uint + uint
+			// int  + int
+
 		};
 
 		case EXPR_BINARY_SUB: {

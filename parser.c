@@ -512,7 +512,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 			*left = (Expression){
 				.kind  = EXPR_NULL,
 				.flags = EXPR_FLAG_CONSTANT | EXPR_FLAG_CONSTANT,
-				.type = get_ptr_type(TYPE_BYTE),
+				.type = ts_get_ptr(TYPE_BYTE),
 				.value = ir_int(0),
 			};
 			token++;
@@ -562,7 +562,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 			*left = (Expression){
 				.kind  = EXPR_LITERAL,
 				.flags = EXPR_FLAG_CONSTANT | EXPR_FLAG_CONSTANT,
-				.type = get_fixed_type(TYPE_INT8, token->string.length),
+				.type = ts_get_fixed(TYPE_INT8, token->string.length),
 				.value = 0,
 				.term.token = token,
 			};

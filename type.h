@@ -83,23 +83,27 @@ struct Type {
 };
 
 static void ts_init(void);
-static inline TypeKind get_type_kind(TypeID id);
-static inline u32 get_type_index(TypeID id);
-static inline Type* get_type(TypeID id);
-static inline u64 get_type_size(TypeID id);
-static inline u64 get_tuple_length(TypeID type);
-static inline u64 get_fixed_length(TypeID type);
-static TypeID get_ptr_type(TypeID typeid);
-static TypeID get_array_type(TypeID typeid);
-static TypeID get_func_type(TypeID input, TypeID output);
-static TypeID get_tuple_type(TypeID* types, u64 count);
-static TypeID get_fixed_type(TypeID typeid, u64 length);
-static TypeID get_subtype(TypeID type);
-static bool is_int(TypeID type);
-static bool is_unsigned(TypeID type);
-static bool is_signed(TypeID type);
-static bool is_float(TypeID type);
-static bool is_ptr(TypeID type);
-static bool is_specifier(TypeID type);
+
+static inline TypeKind ts_get_kind(TypeID id);
+static inline u32      ts_get_index(TypeID id);
+static inline Type*    ts_get_type(TypeID id);
+static inline u64      ts_get_size(TypeID id);
+static inline u64      ts_get_tuple_length(TypeID type);
+static inline u64      ts_get_fixed_length(TypeID type);
+
+static TypeID ts_get_ptr(TypeID typeid);
+static TypeID ts_get_array(TypeID typeid);
+static TypeID ts_get_func(TypeID input, TypeID output);
+static TypeID ts_get_tuple(TypeID* types, u64 count);
+static TypeID ts_get_fixed(TypeID typeid, u64 length);
+static TypeID ts_get_subtype(TypeID type);
+
+static bool ts_is_int(TypeID type);
+static bool ts_is_unsigned(TypeID type);
+static bool ts_is_signed(TypeID type);
+static bool ts_is_float(TypeID type);
+static bool ts_is_ptr(TypeID type);
+static bool ts_is_specifier(TypeID type);
+
 #endif // TYPE_H
 
