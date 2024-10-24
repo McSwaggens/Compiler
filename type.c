@@ -227,6 +227,74 @@ static TypeID ts_get_subtype(TypeID type) {
 	return p->subtype;
 }
 
+static TypeID ts_get_integral_type(TypeID type) {
+
+	switch (type) {
+		case TYPE_BYTE:   return TYPE_INT8;
+		case TYPE_BOOL:   return TYPE_INT8;
+		case TYPE_TYPEID: return TYPE_UINT32;
+
+		case TYPE_INT8:
+		case TYPE_INT16:
+		case TYPE_INT32:
+		case TYPE_INT64:
+
+		case TYPE_UINT8:
+		case TYPE_UINT16:
+		case TYPE_UINT32:
+		case TYPE_UINT64:
+
+		case TYPE_FLOAT32:
+		case TYPE_FLOAT64:
+			return type;
+
+		default:
+			return 0;
+	}
+}
+
+static TypeID ts_get_unsigned(TypeID type) {
+	assert(ts_is_int(type));
+
+	switch (type) {
+		case TYPE_INT8:  return TYPE_UINT8;
+		case TYPE_INT16: return TYPE_UINT16;
+		case TYPE_INT32: return TYPE_UINT32;
+		case TYPE_INT64: return TYPE_UINT64;
+
+		case TYPE_UINT8:
+		case TYPE_UINT16:
+		case TYPE_UINT32:
+		case TYPE_UINT64:
+			return type;
+	}
+
+	assert_unreachable();
+}
+
+static TypeID ts_get_signed(TypeID type) {
+	assert(ts_is_int(type));
+
+	switch (type) {
+		case TYPE_INT8:
+		case TYPE_INT16:
+		case TYPE_INT32:
+		case TYPE_INT64:
+			return type;
+
+		case TYPE_UINT8:  return TYPE_INT8;
+		case TYPE_UINT16: return TYPE_INT16;
+		case TYPE_UINT32: return TYPE_INT32;
+		case TYPE_UINT64: return TYPE_INT64;
+	}
+
+	assert_unreachable();
+}
+
+static bool ts_is_integral_type(TypeID type) {
+	return ts_get_integral_type(type) != 0;
+}
+
 static bool ts_is_int(TypeID type) {
 	return ts_is_signed(type) || ts_is_unsigned(type);
 }
@@ -249,10 +317,6 @@ static bool ts_is_ptr(TypeID type) {
 
 static bool ts_is_specifier(TypeID type) {
 	switch (ts_get_kind(type)) {
-		default:
-			// print("ts_is_specifier(%)\n", arg_type(type));
-			assert_unreachable();
-
 		case TYPE_KIND_PTR:
 		case TYPE_KIND_ARRAY:
 		case TYPE_KIND_FIXED:
@@ -264,6 +328,10 @@ static bool ts_is_specifier(TypeID type) {
 		case TYPE_KIND_FUNCTION:
 		case TYPE_KIND_PRIMITIVE:
 			return false;
+
+		default:
+			// print("ts_is_specifier(%)\n", arg_type(type));
+			assert_unreachable();
 	}
 }
 

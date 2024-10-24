@@ -9,30 +9,36 @@ static void scan_code(ScanHelper* helper, Code* code);
 static void scan_function(ScanHelper* helper, Function* func);
 
 static void insert_cast_expression(ScanHelper* helper, Expression** pexpr, TypeID to) {
+	assert(pexpr);
+	assert(*pexpr);
+
 	Expression* expr = *pexpr;
+
+	if (expr->type == to)
+		return;
 
 	Expression* result = alloc_expression();
 	*result = (Expression){
-		.kind = EXPR_UNARY_IMPLICIT_CAST,
-		.unary.sub = expr,
-		.type = to,
+		.kind  = EXPR_UNARY_IMPLICIT_CAST,
+		.left  = expr,
+		.type  = to,
 		.begin = expr->begin,
-		.end = expr->end,
+		.end   = expr->end,
 		.scope = expr->scope,
 	};
 
 	*pexpr = result;
 }
 
-static void cast_to_integral_type(ScanHelper* helper, Expression** pexpr) {
+static void insert_cast_to_integral(ScanHelper* helper, Expression** pexpr) {
+	assert(pexpr);
+	assert(*pexpr);
 	Expression* expr = *pexpr;
-	Module* module = helper->module;
-
 	assert(expr->type);
+	TypeID integral_type = ts_get_integral_type(expr->type);
 
-	if (expr->type == TYPE_BOOL) {
-		insert_cast_expression(helper, pexpr, TYPE_INT8);
-	}
+	if (integral_type)
+		insert_cast_expression(helper, pexpr, integral_type);
 }
 
 static bool can_implicit_cast(TypeID a, TypeID b) {
@@ -152,7 +158,7 @@ static void scan_identifier(ScanHelper* helper, Scope* scope, Expression* expr) 
 	if (expr->term.var) {
 		Variable* var = expr->term.var;
 		expr->type = var->type;
-		print("var->type = %\n", arg_type(var->type));
+		// print("var->type = %\n", arg_type(var->type));
 		return;
 	}
 
@@ -168,44 +174,45 @@ static void scan_identifier(ScanHelper* helper, Scope* scope, Expression* expr) 
 }
 
 static void scan_array(ScanHelper* helper, Scope* scope, Expression* expr) {
-	for (u32 i = 0; i < expr->array.elem_count; i++) {
-		Expression* elem = expr->array.elems[i];
-		scan_expression(helper, scope, elem);
+	Expression** elems = expr_table_get(&expr->array.elems);
+	for (u32 i = 0; i < expr->array.elems.count; i++) {
+		scan_expression(helper, scope, elems[i]);
 	}
 }
 
 static void scan_tuple(ScanHelper* helper, Scope* scope, Expression* expr) {
-	TypeID types[expr->tuple.elem_count];
+	TypeID types[expr->tuple.elems.count];
+	Expression** elems = expr_table_get(&expr->tuple.elems);
 
-	for (u32 i = 0; i < expr->tuple.elem_count; i++) {
-		Expression* elem = expr->tuple.elems[i];
-		scan_expression(helper, scope, elem);
-		types[i] = elem->type;
+	for (u32 i = 0; i < expr->tuple.elems.count; i++) {
+		scan_expression(helper, scope, elems[i]);
+		types[i] = elems[i]->type;
 	}
 
-	expr->type = ts_get_tuple(types, expr->tuple.elem_count);
+	expr->type = ts_get_tuple(types, expr->tuple.elems.count);
 }
 
 static void scan_formal_usertype_identifier(ScanHelper* helper, Scope* scope, Expression* expr) {
-	UserTypeResult utr = find_usertype(helper, expr->term.token->identifier);
 	expr->type = TYPE_TYPEID;
+
+	UserTypeResult utr = find_usertype(helper, expr->term.token->identifier);
 
 	if (!utr.kind)
 		errore(expr, 3, "No such struct or enum called '%'.\n", arg_string(expr->term.token->identifier));
 
 	if (utr.kind == TYPE_KIND_STRUCT) {
 		expr->kind = EXPR_BASETYPE_STRUCT;
-		utr.s = utr.s;
+		expr->value = ir_int((u64)utr.s);
 	}
 	else {
 		expr->kind = EXPR_BASETYPE_ENUM;
-		utr.e = utr.e;
+		expr->value = ir_int((u64)utr.e);
 	}
 }
 
 static void scan_unary_ptr(ScanHelper* helper, Scope* scope, Expression* expr) {
-	scan_expression(helper, scope, expr->unary.sub);
-	Expression* sub = expr->unary.sub;
+	scan_expression(helper, scope, expr->left);
+	Expression* sub = expr->left;
 	assert(sub->type);
 
 	if (sub->type == TYPE_TYPEID && (sub->flags & EXPR_FLAG_CONSTANT)) {
@@ -239,7 +246,7 @@ static void scan_unary_ptr(ScanHelper* helper, Scope* scope, Expression* expr) {
 }
 
 static void scan_unary_ref(ScanHelper* helper, Scope* scope, Expression* expr) {
-	Expression* sub = expr->unary.sub;
+	Expression* sub = expr->left;
 	scan_expression(helper, scope, sub);
 
 	if (!ts_is_ptr(sub->type))
@@ -248,8 +255,200 @@ static void scan_unary_ref(ScanHelper* helper, Scope* scope, Expression* expr) {
 	expr->type = ts_get_subtype(sub->type);
 }
 
+static TypeID get_preferred_integral(TypeID a, TypeID b) {
+	assert(ts_is_int(a));
+	assert(ts_is_int(b));
+
+	if (a == b)
+		return a;
+
+	TypeID result_type = ts_get_size(a) >= ts_get_size(a) ? a : b;
+
+	if (ts_is_unsigned(a) || ts_is_unsigned(b))
+		result_type = ts_get_unsigned(result_type);
+
+	return result_type;
+}
+
+static void scan_binary_add(ScanHelper* helper, Scope* scope, Expression* expr) {
+	scan_expression(helper, scope, expr->left);
+	scan_expression(helper, scope, expr->right);
+
+	// *T + uint
+	// float64 + float64
+	// float32 + float32
+	// uint + uint
+	// int  + int
+
+	TypeID ltype = expr->left->type;
+	TypeID rtype = expr->right->type;
+
+	// *T + uint
+	if (ts_is_ptr(ltype) && can_coercive_cast(rtype, TYPE_UINT64)) {
+		expr->kind = EXPR_BINARY_ADD_INDEX;
+
+		insert_cast_expression(helper, &expr->right, TYPE_UINT64);
+		expr->type = expr->left->type;
+		return;
+	}
+
+	// float64 + float64
+	if (ltype == TYPE_FLOAT64 || rtype == TYPE_FLOAT64) {
+		expr->kind = EXPR_BINARY_ADD_FP64;
+
+		if (!can_coercive_cast(ltype, TYPE_FLOAT64))
+			errore(expr->left, 3, "Type % is not convertable to float64\n", arg_type(ltype));
+
+		if (!can_coercive_cast(rtype, TYPE_FLOAT64))
+			errore(expr->right, 3, "Type % is not convertable to float64\n", arg_type(rtype));
+
+		insert_cast_expression(helper, &expr->left,  TYPE_FLOAT64);
+		insert_cast_expression(helper, &expr->right, TYPE_FLOAT64);
+
+		return;
+	}
+
+	// float32 + float32
+	if (ltype == TYPE_FLOAT32 || rtype == TYPE_FLOAT32) {
+		expr->kind = EXPR_BINARY_ADD_FP32;
+
+		if (!can_coercive_cast(ltype, TYPE_FLOAT32))
+			errore(expr->left, 3, "Type % is not convertable to float32\n", arg_type(ltype));
+
+		if (!can_coercive_cast(rtype, TYPE_FLOAT32))
+			errore(expr->right, 3, "Type % is not convertable to float32\n", arg_type(rtype));
+
+		insert_cast_expression(helper, &expr->left,  TYPE_FLOAT32);
+		insert_cast_expression(helper, &expr->right, TYPE_FLOAT32);
+		return;
+	}
+
+	if (!ts_get_integral_type(ltype))
+		errore(expr, 3, "'%' is not an integral type.\n", arg_type(ltype));
+
+	if (!ts_get_integral_type(rtype))
+		errore(expr, 3, "'%' is not an integral type.\n", arg_type(rtype));
+
+	insert_cast_to_integral(helper, &expr->left);
+	insert_cast_to_integral(helper, &expr->right);
+
+	ltype = expr->left->type;
+	rtype = expr->right->type;
+
+	TypeID type = get_preferred_integral(ltype, rtype);
+
+	insert_cast_expression(helper, &expr->left,  type);
+	insert_cast_expression(helper, &expr->right, type);
+}
+
+static void scan_binary_sub(ScanHelper* helper, Scope* scope, Expression* expr) {
+	scan_expression(helper, scope, expr->left);
+	scan_expression(helper, scope, expr->right);
+
+	// *T - *T
+	// *T - int
+	// float64 - float64
+	// float32 - float32
+	// uint - uint
+	// int  - int
+
+	TypeID ltype = expr->left->type;
+	TypeID rtype = expr->right->type;
+
+	// *T - *T
+	if (ts_is_ptr(ltype) && ts_is_ptr(rtype)) {
+		if (ltype != rtype)
+			errore(expr->left, 3, "Cannot subtract types '%' and '%'.\n", arg_type(ltype), arg_type(rtype));
+
+		expr->type = TYPE_UINT64;
+
+		return;
+	}
+
+	// *T - int
+	if (ts_is_ptr(ltype) && ts_is_integral_type(rtype)) {
+		insert_cast_to_integral(helper, &expr->right);
+
+		expr->type = ltype;
+
+		return;
+	}
+
+	// float64 - float64
+	if (ltype == TYPE_FLOAT64 || rtype == TYPE_FLOAT64) {
+		insert_cast_expression(helper, &expr->left,  TYPE_FLOAT64);
+		insert_cast_expression(helper, &expr->right, TYPE_FLOAT64);
+
+		expr->type = TYPE_FLOAT64;
+
+		return;
+	}
+
+	// float32 - float32
+	if (ltype == TYPE_FLOAT32 || rtype == TYPE_FLOAT32) {
+		insert_cast_expression(helper, &expr->left,  TYPE_FLOAT32);
+		insert_cast_expression(helper, &expr->right, TYPE_FLOAT32);
+
+		expr->type = TYPE_FLOAT32;
+
+		return;
+	}
+
+	if (!ts_get_integral_type(ltype))
+		errore(expr, 3, "'%' is not an integral type.\n", arg_type(ltype));
+
+	if (!ts_get_integral_type(rtype))
+		errore(expr, 3, "'%' is not an integral type.\n", arg_type(rtype));
+
+	insert_cast_to_integral(helper, &expr->left);
+	insert_cast_to_integral(helper, &expr->right);
+
+	ltype = expr->left->type;
+	rtype = expr->right->type;
+
+	TypeID type = get_preferred_integral(ltype, rtype);
+
+	insert_cast_expression(helper, &expr->left,  type);
+	insert_cast_expression(helper, &expr->right, type);
+}
+
+static bool is_type_indexable(TypeID tid) {
+	TypeKind kind = ts_get_kind(tid);
+
+	switch (kind) {
+		case TYPE_KIND_ARRAY:
+		case TYPE_KIND_FIXED:
+		case TYPE_KIND_PTR:
+			return true;
+
+		default:
+			return false;
+	}
+}
+
+static void scan_call(ScanHelper* helper, Scope* scope, Expression* expr) {
+	scan_expression(helper, scope, expr->call.function);
+	Expression** args = expr_table_get(&expr->call.args);
+
+	for (u64 i = 0; i < expr->call.args.count; i++) {
+		scan_expression(helper, scope, args[i]);
+	}
+}
+
+static void scan_dot(ScanHelper* helper, Scope* scope, Expression* expr) {
+	scan_expression(helper, scope, expr->left);
+
+	if (expr->right->kind != EXPR_IDENTIFIER_VARIABLE)
+		errore(expr->right, 3, "Invalid dot expression, expected field identifier.\n");
+
+	// @todo
+}
+
 static void scan_expression(ScanHelper* helper, Scope* scope, Expression* expr) {
 	// print("expr = %\n", arg_expression(expr));
+
+	assert(expr);
+
 	switch (expr->kind) {
 		case EXPR_NULL:
 		case EXPR_TRUE:
@@ -306,36 +505,44 @@ static void scan_expression(ScanHelper* helper, Scope* scope, Expression* expr) 
 		case EXPR_UNARY_BIT_NOT: {
 		} break;
 
-		case EXPR_BINARY_ADD: {
-			// *T + uint
-			// float64 + float64
-			// float32 + float32
-			// uint + uint
-			// int  + int
+		case EXPR_BINARY_OR:
+		case EXPR_BINARY_AND: {
+			scan_expression(helper, scope, expr->left);
+			scan_expression(helper, scope, expr->right);
 
-		};
+			if (!can_coercive_cast(expr->left->type, TYPE_BOOL))
+				errore(expr->left, 3, "Cannot cast type % to bool.\n", arg_type(expr->left->type));
+
+			if (!can_coercive_cast(expr->right->type, TYPE_BOOL))
+				errore(expr->right, 3, "Cannot cast type % to bool.\n", arg_type(expr->right->type));
+
+			insert_cast_expression(helper, &expr->left,  TYPE_BOOL);
+			insert_cast_expression(helper, &expr->right, TYPE_BOOL);
+
+			expr->type = TYPE_BOOL;
+		} break;
+
+		case EXPR_BINARY_ADD: {
+			scan_binary_add(helper, scope, expr);
+		} break;
 
 		case EXPR_BINARY_SUB: {
-		};
+			scan_binary_sub(helper, scope, expr);
+		} break;
 
 		case EXPR_BINARY_MUL: {
-		};
+		} break;
 
 		case EXPR_BINARY_DIV: {
-		};
+		} break;
 
 		case EXPR_BINARY_MOD: {
-		};
+		} break;
 
-		case EXPR_BINARY_BIT_XOR: {
-		};
-
-		case EXPR_BINARY_BIT_AND: {
-		};
-
+		case EXPR_BINARY_BIT_XOR:
+		case EXPR_BINARY_BIT_AND:
 		case EXPR_BINARY_BIT_OR:
-		case EXPR_BINARY_OR:
-		case EXPR_BINARY_AND:
+
 		case EXPR_BINARY_EQUAL:
 		case EXPR_BINARY_NOT_EQUAL:
 		case EXPR_BINARY_LESS:
@@ -345,24 +552,47 @@ static void scan_expression(ScanHelper* helper, Scope* scope, Expression* expr) 
 		case EXPR_BINARY_DOT_DOT:
 		case EXPR_BINARY_LSHIFT:
 		case EXPR_BINARY_RSHIFT: {
-			scan_expression(helper, scope, expr->binary.left);
-			scan_expression(helper, scope, expr->binary.right);
+			scan_expression(helper, scope, expr->left);
+			scan_expression(helper, scope, expr->right);
 		} break;
 
 		case EXPR_BINARY_DOT: {
+			scan_dot(helper, scope, expr);
 		} break;
 
 		case EXPR_BINARY_SPAN: {
+			scan_expression(helper, scope, expr->left);
+			scan_expression(helper, scope, expr->right);
 		} break;
 
 		case EXPR_CALL: {
+			scan_call(helper, scope, expr);
 		} break;
 
 		case EXPR_INDEX: {
+			scan_expression(helper, scope, expr->subscript.base);
+			scan_expression(helper, scope, expr->subscript.index);
+
+			if (!can_coercive_cast(expr->subscript.index->type, TYPE_UINT64))
+				errore(expr->subscript.base, 3, "Cannot convert type '%' to type 'uint64'\n", arg_type(expr->subscript.index->type));
+
+			if (!is_type_indexable(expr->subscript.base->type))
+				errore(expr->subscript.base, 3, "Type '%' is not an indexable type.\n", arg_type(expr->subscript.base->type));
+
+			expr->type = ts_get_subtype(expr->subscript.base->type);
 		} break;
 
 		case EXPR_TERNARY_IF_ELSE: {
+			scan_expression(helper, scope, expr->left);
+			scan_expression(helper, scope, expr->middle);
+			scan_expression(helper, scope, expr->right);
+
+			insert_cast_expression(helper, &expr->middle, TYPE_BOOL);
+			insert_cast_expression(helper, &expr->right, expr->left->type);
 		} break;
+
+		default:
+			assert_unreachable();
 
 	}
 
@@ -371,13 +601,11 @@ static void scan_expression(ScanHelper* helper, Scope* scope, Expression* expr) 
 
 static void scan_variable(ScanHelper* helper, Scope* scope, Variable* var) {
 	if (var->type_expr) {
-		// print("var->type_expr\n");
 		scan_expression(helper, scope, var->type_expr);
 		var->type = ir_get_const_int(var->type_expr->value);
 	}
 
 	if (var->init_expr) {
-		// print("var->init_expr\n");
 		scan_expression(helper, scope, var->init_expr);
 
 		// if ((var->init_expr->flags & EXPR_FLAG_CONSTANT)
@@ -447,8 +675,6 @@ static void scan_assignment(ScanHelper* helper, Code* code, Assignment* assignme
 
 static void scan_statement(ScanHelper* helper, Code* code, Statement* statement) {
 	switch (statement->kind) {
-		default: assert_unreachable();
-
 		case STATEMENT_ASSIGNMENT:
 		case STATEMENT_ASSIGNMENT_LSH:
 		case STATEMENT_ASSIGNMENT_RSH:
@@ -475,12 +701,23 @@ static void scan_statement(ScanHelper* helper, Code* code, Statement* statement)
 			scan_variable(helper, &code->scope, statement->var);
 		} break;
 
-		case STATEMENT_RETURN:
+		case STATEMENT_RETURN: {
+			scan_expression(helper, &code->scope, statement->ret.expr);
+		} break;
+
 		case STATEMENT_BREAK:
-		case STATEMENT_CONTINUE:
+		case STATEMENT_CONTINUE: {
+		} break;
+
 		case STATEMENT_INC:
 		case STATEMENT_DEC: {
+			bool dir = statement->kind == STATEMENT_INC;
+
+			scan_expression(helper, &code->scope, statement->expr);
 		} break;
+
+		default:
+			assert_unreachable();
 	}
 }
 

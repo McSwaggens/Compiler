@@ -97,12 +97,16 @@ static TypeID ts_get_func(TypeID input, TypeID output);
 static TypeID ts_get_tuple(TypeID* types, u64 count);
 static TypeID ts_get_fixed(TypeID typeid, u64 length);
 static TypeID ts_get_subtype(TypeID type);
+static TypeID ts_get_integral_type(TypeID type);
+static TypeID ts_get_unsigned(TypeID type);
+static TypeID ts_get_signed(TypeID type);
 
 static bool ts_is_int(TypeID type);
 static bool ts_is_unsigned(TypeID type);
 static bool ts_is_signed(TypeID type);
 static bool ts_is_float(TypeID type);
 static bool ts_is_ptr(TypeID type);
+static bool ts_is_integral_type(TypeID type);
 static bool ts_is_specifier(TypeID type);
 
 #endif // TYPE_H

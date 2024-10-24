@@ -339,7 +339,7 @@ static void write_expression(OutputBuffer* buffer, Expression* expr) {
 	// print("(kind = %)", arg_s32(expr->kind));
 
 	switch (expr->kind) {
-		// default: assert_unreachable();
+		default: assert_unreachable();
 
 		case EXPR_TRUE:
 		case EXPR_FALSE:
@@ -389,7 +389,7 @@ static void write_expression(OutputBuffer* buffer, Expression* expr) {
 
 		case EXPR_UNARY_IMPLICIT_CAST: {
 			write_cstring(buffer, "(");
-			write_expression(buffer, expr->unary.sub);
+			write_expression(buffer, expr->left);
 			write_cstring(buffer, " IMPLICIT_CAST ");
 			write_cstring(buffer, " TODO_TYPE_VALUE_PRINTING");
 			// write_type(buffer, expr->type);
@@ -403,8 +403,8 @@ static void write_expression(OutputBuffer* buffer, Expression* expr) {
 		case EXPR_UNARY_NOT:
 		case EXPR_UNARY_BIT_NOT: {
 			// write_char(buffer, '(');
-			write_token(buffer, expr->unary.optoken);
-			write_expression(buffer, expr->unary.sub);
+			write_token(buffer, expr->optoken);
+			write_expression(buffer, expr->left);
 			// write_char(buffer, ')');
 		} break;
 
@@ -429,11 +429,11 @@ static void write_expression(OutputBuffer* buffer, Expression* expr) {
 		case EXPR_BINARY_DOT:
 		case EXPR_BINARY_DOT_DOT: {
 			write_char(buffer, '(');
-			write_expression(buffer, expr->binary.left);
+			write_expression(buffer, expr->left);
 			write_char(buffer, ' ');
-			write_token(buffer, expr->binary.optoken);
+			write_token(buffer, expr->optoken);
 			write_char(buffer, ' ');
-			write_expression(buffer, expr->binary.right);
+			write_expression(buffer, expr->right);
 			write_char(buffer, ')');
 		} break;
 
@@ -447,43 +447,45 @@ static void write_expression(OutputBuffer* buffer, Expression* expr) {
 		case EXPR_CALL: {
 			write_expression(buffer, expr->call.function);
 			write_char(buffer, '(');
-			for (u64 i = 0; i < expr->call.arg_count; i++) {
+
+			Expression** args = expr_table_get(&expr->call.args);
+			for (u64 i = 0; i < expr->call.args.count; i++) {
 				if (i) write_cstring(buffer, ", ");
-				Expression* arg = expr->call.args[i];
-				write_expression(buffer, arg);
+				write_expression(buffer, args[i]);
 			}
+
 			write_char(buffer, ')');
 		} break;
 
 		case EXPR_BINARY_SPAN: {
 			write_char(buffer, '[');
-			write_expression(buffer, expr->span.left);
+			write_expression(buffer, expr->left);
 			write_cstring(buffer, " .. ");
-			write_expression(buffer, expr->span.right);
+			write_expression(buffer, expr->right);
 			write_char(buffer, ']');
 		} break;
 
 
 		case EXPR_TERNARY_IF_ELSE: {
 			write_char(buffer, '(');
-			write_expression(buffer, expr->ternary.left);
+			write_expression(buffer, expr->left);
 			write_cstring(buffer, " if ");
-			write_expression(buffer, expr->ternary.middle);
+			write_expression(buffer, expr->middle);
 			write_cstring(buffer, " else ");
-			write_expression(buffer, expr->ternary.right);
+			write_expression(buffer, expr->right);
 			write_char(buffer, ')');
 		} break;
 
 		case EXPR_ARRAY: {
 			write_cstring(buffer, "{ARRAY: ");
 
-			for (u64 i = 0; i < expr->array.elem_count; i++) {
+			Expression** args = expr_table_get(&expr->array.elems);
+			for (u64 i = 0; i < expr->array.elems.count; i++) {
 				if (i) write_cstring(buffer, ", ");
-				Expression* elem = expr->array.elems[i];
-				write_expression(buffer, elem);
+				write_expression(buffer, args[i]);
 			}
 
-			if (expr->array.elem_count)
+			if (expr->array.elems.count)
 				write_char(buffer, ' ');
 
 			write_cstring(buffer, "}");
@@ -491,10 +493,11 @@ static void write_expression(OutputBuffer* buffer, Expression* expr) {
 
 		case EXPR_TUPLE: {
 			write_cstring(buffer, "(TUPLE: ");
-			for (u64 i = 0; i < expr->tuple.elem_count; i++) {
+
+			Expression** args = expr_table_get(&expr->array.elems);
+			for (u64 i = 0; i < expr->tuple.elems.count; i++) {
 				if (i) write_cstring(buffer, ", ");
-				Expression* elem = expr->tuple.elems[i];
-				write_expression(buffer, elem);
+				write_expression(buffer, args[i]);
 			}
 
 			write_cstring(buffer, ")");
@@ -543,28 +546,28 @@ static void write_statement(OutputBuffer* buffer, Statement* statement) {
 		case STATEMENT_ASSIGNMENT_BIT_XOR:
 		case STATEMENT_ASSIGNMENT_BIT_AND:
 		case STATEMENT_ASSIGNMENT_BIT_OR:
-		case STATEMENT_ASSIGNMENT:
+		case STATEMENT_ASSIGNMENT: {
 			printbuff(
 				buffer,
 				":\n\tleft  = %\n\tright = %",
 				arg_expression(statement->assign.left),
 				arg_expression(statement->assign.right)
 			);
-			break;
+		} break;
 
-		case STATEMENT_EXPRESSION:
+		case STATEMENT_EXPRESSION: {
 			printbuff(
 				buffer,
 				":\n\texpr = %",
 				arg_expression(statement->expr)
 			);
-			break;
+		} break;
 
-		case STATEMENT_CONTROLFLOW:
+		case STATEMENT_CONTROLFLOW: {
 			write_cstring(buffer, "");
-			break;
+		} break;
 
-		case STATEMENT_VARDECL:
+		case STATEMENT_VARDECL: {
 			printbuff(
 				buffer,
 				":\n\tname = %\n\ttype = %\n\tinit = %",
@@ -572,66 +575,66 @@ static void write_statement(OutputBuffer* buffer, Statement* statement) {
 				arg_expression(statement->var->type_expr),
 				arg_expression(statement->var->init_expr)
 			);
-			break;
+		} break;
 
-		case STATEMENT_RETURN:
+		case STATEMENT_RETURN: {
 			printbuff(
 				buffer,
 				":\n\texpr = %",
 				arg_expression(statement->expr)
 			);
-			break;
+		} break;
 
-		case STATEMENT_CONTINUE:
-			break;
+		case STATEMENT_CONTINUE: {
+		} break;
 
-		case STATEMENT_BREAK:
-			break;
+		case STATEMENT_BREAK: {
+		} break;
 
-		case STATEMENT_INC:
+		case STATEMENT_INC: {
 			printbuff(
 				buffer,
 				":\n\texpr = %",
 				arg_expression(statement->expr)
 			);
-			break;
+		} break;
 
-		case STATEMENT_DEC:
+		case STATEMENT_DEC: {
 			printbuff(
 				buffer,
 				":\n\texpr = %",
 				arg_expression(statement->expr)
 			);
-			break;
+		} break;
 	}
 }
 
 static void print_argument(OutputBuffer* buffer, FormatArg arg) {
 	switch (arg.kind) {
-		case PRINT_ARG_BOOL:            write_bool(buffer, arg.b); return;
+		case PRINT_ARG_BOOL:       write_bool(buffer, arg.b); return;
 
-		case PRINT_ARG_INT8:            write_s64(buffer, arg.s8);  return;
-		case PRINT_ARG_INT16:           write_s64(buffer, arg.s16); return;
-		case PRINT_ARG_INT32:           write_s64(buffer, arg.s32); return;
-		case PRINT_ARG_INT64:           write_s64(buffer, arg.s64); return;
+		case PRINT_ARG_INT8:       write_s64(buffer, arg.s8);  return;
+		case PRINT_ARG_INT16:      write_s64(buffer, arg.s16); return;
+		case PRINT_ARG_INT32:      write_s64(buffer, arg.s32); return;
+		case PRINT_ARG_INT64:      write_s64(buffer, arg.s64); return;
 
-		case PRINT_ARG_UINT8:           write_u64(buffer, arg.u8);  return;
-		case PRINT_ARG_UINT16:          write_u64(buffer, arg.u16); return;
-		case PRINT_ARG_UINT32:          write_u64(buffer, arg.u32); return;
-		case PRINT_ARG_UINT64:          write_u64(buffer, arg.u64); return;
+		case PRINT_ARG_UINT8:      write_u64(buffer, arg.u8);  return;
+		case PRINT_ARG_UINT16:     write_u64(buffer, arg.u16); return;
+		case PRINT_ARG_UINT32:     write_u64(buffer, arg.u32); return;
+		case PRINT_ARG_UINT64:     write_u64(buffer, arg.u64); return;
 
-		case PRINT_ARG_F32:             write_f32(buffer, arg.f); return;
-		case PRINT_ARG_F64:             write_f64(buffer, arg.d); return;
-		case PRINT_ARG_CHAR:            write_char(buffer, arg.c);  return;
-		case PRINT_ARG_STRING:          write_string(buffer, arg.str); return;
-		case PRINT_ARG_CSTRING:         write_cstring(buffer, arg.s);  return;
+		case PRINT_ARG_F32:        write_f32(buffer, arg.f); return;
+		case PRINT_ARG_F64:        write_f64(buffer, arg.d); return;
+		case PRINT_ARG_CHAR:       write_char(buffer, arg.c);  return;
+		case PRINT_ARG_STRING:     write_string(buffer, arg.str); return;
+		case PRINT_ARG_CSTRING:    write_cstring(buffer, arg.s);  return;
 
-		case PRINT_ARG_TOKEN:           write_token(buffer, arg.token); return;
-		case PRINT_ARG_TOKEN_KIND:      write_token_kind(buffer, arg.token_kind); return;
+		case PRINT_ARG_TOKEN:      write_token(buffer, arg.token); return;
+		case PRINT_ARG_TOKEN_KIND: write_token_kind(buffer, arg.token_kind); return;
 
-		case PRINT_ARG_EXPRESSION:      write_expression(buffer, arg.expr); return;
-		case PRINT_ARG_STATEMENT:       write_statement(buffer, arg.statement); return;
-		case PRINT_ARG_TYPE:            write_type(buffer, arg.type); return;
+		case PRINT_ARG_EXPRESSION: write_expression(buffer, arg.expr); return;
+		case PRINT_ARG_STATEMENT:  write_statement(buffer, arg.statement); return;
+		case PRINT_ARG_TYPE:       write_type(buffer, arg.type); return;
 	}
 }
 
@@ -724,6 +727,7 @@ static void write_fill_char(OutputBuffer* buffer, char c, u64 n) {
 	while (n--)
 		write_char(buffer, c);
 }
+
 static void errore(Expression* expr, u64 extra_lines, const char* format, ...) {
 	OutputBuffer* buffer = &standard_output_buffer;
 

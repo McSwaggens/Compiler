@@ -25,7 +25,7 @@ static void free_virtual_page(void* page, u64 size) {
 static Stack stack;
 
 static Stack make_stack(u64 size) {
-	size = round_to_nearest_mulpow2(size, 4086);
+	size = round_to_nearest_mulpow2(size, 4096);
 	byte* p = alloc_virtual_page(size);
 
 	return (Stack){

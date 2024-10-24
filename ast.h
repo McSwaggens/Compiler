@@ -32,13 +32,16 @@ typedef enum ClauseKind     ClauseKind;
 typedef enum ScopeFlags      ScopeFlags;
 typedef enum VariableFlags   VariableFlags;
 typedef enum ExpressionFlags ExpressionFlags;
-typedef enum FunctionFlags FunctionFlags;
+typedef enum FunctionFlags   FunctionFlags;
 
 #include "ir.h"
 
 enum ExpressionFlags {
 	EXPR_FLAG_CONSTANT = 0x01,
 	EXPR_FLAG_REF      = 0x02,
+	EXPR_FLAG_UNARY    = 0x04,
+	EXPR_FLAG_BINARY   = 0x08,
+	EXPR_FLAG_TERNARY  = 0x10,
 };
 
 enum VariableFlags {
@@ -75,14 +78,27 @@ enum ExpressionKind {
 	EXPR_UNARY_NOT,               // !e
 	EXPR_UNARY_BIT_NOT,           // ~e
 	EXPR_UNARY_IMPLICIT_CAST,
+
 	EXPR_BINARY_ADD,              // a + b
+	EXPR_BINARY_ADD_INDEX,        // p + i
+	EXPR_BINARY_ADD_INT,          // i + i
+	EXPR_BINARY_ADD_FP32,         // f + f
+	EXPR_BINARY_ADD_FP64,         // f + f
+
 	EXPR_BINARY_SUB,              // a - b
+	EXPR_BINARY_SUB_PTR,          // p - p
+	EXPR_BINARY_SUB_INT,          // i - i
+	EXPR_BINARY_SUB_F32,          // f - f
+	EXPR_BINARY_SUB_F64,          // f - f
+
 	EXPR_BINARY_MUL,              // a * b
 	EXPR_BINARY_DIV,              // a / b
 	EXPR_BINARY_MOD,              // a \ b
+
 	EXPR_BINARY_BIT_XOR,          // a ^ b
 	EXPR_BINARY_BIT_AND,          // a & b
 	EXPR_BINARY_BIT_OR,           // a | b
+
 	EXPR_BINARY_OR,               // a || b
 	EXPR_BINARY_AND,              // a && b
 	EXPR_BINARY_EQUAL,            // a = b
@@ -181,6 +197,22 @@ struct Function {
 	Code code;
 };
 
+#define EXPRESSION_TABLE_INLINE_COUNT 2
+
+typedef struct ExpressionTable ExpressionTable;
+
+struct ExpressionTable {
+	u64 count;
+
+	union {
+		Expression* inline_expressions[EXPRESSION_TABLE_INLINE_COUNT];
+		Expression** external_expressions;
+	};
+};
+
+static inline Expression** expr_table_get(ExpressionTable* table);
+static inline ExpressionTable make_expr_table(u64 count);
+
 struct Expression {
 	ExpressionKind kind;
 	ExpressionFlags flags;
@@ -189,44 +221,22 @@ struct Expression {
 	V32 value;
 
 	union {
-		struct {
-			Token* optoken;
-			Expression* sub;
-		} unary;
+		Expression* subs[3];
 
 		struct {
-			Token* optoken;
 			Expression* left;
 			Expression* right;
-		} binary;
-
-		struct {
-			Token* optoken;
-			Expression* left;
 			Expression* middle;
-			Expression* right;
-		} ternary;
+			Token* optoken;
+		};
 
-		struct {
-			Expression* function;
-			Expression** args;
-			u64 arg_count;
-		} call;
+		struct { Expression* function; ExpressionTable args; } call;
 
-		struct {
-			Expression** elems;
-			u64 elem_count;
-		} tuple;
+		struct { ExpressionTable elems; } tuple;
+		struct { ExpressionTable elems; } array;
 
-		struct {
-			Expression** elems;
-			u64 elem_count;
-		} array;
-
-		struct {
-			Expression* sub;
-			Expression* length;
-		} specifier;
+		struct { Expression* sub;  Expression* length; } specifier;
+		struct { Expression* base; Expression* index;  } subscript;
 
 		struct {
 			union {
@@ -237,16 +247,6 @@ struct Expression {
 			};
 			Token* token;
 		} term;
-
-		struct {
-			Expression* base;
-			Expression* index;
-		} subscript;
-
-		struct {
-			Expression* left;
-			Expression* right;
-		} span;
 	};
 
 	Token* begin;
@@ -333,14 +333,6 @@ struct Statement {
 		Return ret;
 		Break brk;
 	};
-};
-
-typedef struct ExpressionTable ExpressionTable;
-
-struct ExpressionTable {
-	Expression** expressions;
-	u32 count;
-	u32 capacity;
 };
 
 struct Module {

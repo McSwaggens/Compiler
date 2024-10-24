@@ -4,6 +4,23 @@
 #include "semantic.h"
 #include "mm.h"
 
+static inline Expression** expr_table_get(ExpressionTable* table) {
+	if (table->count <= EXPRESSION_TABLE_INLINE_COUNT)
+		return table->inline_expressions;
+
+	return table->external_expressions;
+}
+
+static inline ExpressionTable make_expr_table(u64 count) {
+	ExpressionTable result = { .count = count };
+
+	if (count > EXPRESSION_TABLE_INLINE_COUNT) {
+		result.external_expressions = stack_alloc(count*sizeof(Expression*));
+	}
+
+	return result;
+}
+
 static bool is_correct_indent(Token* token, Indent16 indent) {
 	return !is_newline(token) || token->indent == indent;
 }
@@ -603,8 +620,9 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 		case TOKEN_PLUS:        kind = EXPR_UNARY_ABS;     goto GOTO_UNARY;
 		GOTO_UNARY: {
 			*left = (Expression){
-				.kind = kind,
-				.unary.optoken = token,
+				.kind    = kind,
+				.optoken = token,
+				.flags   = EXPR_FLAG_UNARY,
 			};
 
 			if (kind == EXPR_UNARY_REF) {
@@ -614,9 +632,9 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 			token++;
 
 			ih_check(token, helper, 0);
-			token = internal_parse_expression(module, token, allow_equals, unaryprec, helper, &left->unary.sub);
+			token = internal_parse_expression(module, token, allow_equals, unaryprec, helper, &left->left);
 
-			if (!left->unary.sub)
+			if (!left->left)
 				errort(token, "Expected expression after unary '%' operator\n", arg_token(begin));
 		} break;
 
@@ -634,49 +652,41 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 			ih_enter(helper);
 			token++; // {
 
-			Expression** elems = null;
-			u64 count = 0;
+			u64 count = open->closure == open+1 ? 0 : open->comma_count+1;
+			ExpressionTable table = make_expr_table(count);
+			Expression** elem = expr_table_get(&table);
 
-			if (token->kind != TOKEN_CLOSE_BRACE) {
-				count = open->comma_count+1;
-				elems = stack_alloc(sizeof(Expression*)*count);
+			while (true) {
+				if (token->kind == TOKEN_COMMA)
+					errort(token, "Missing expression before ','\n");
 
-				Expression** elem = elems;
+				ih_check(token, helper, 0);
+				token = internal_parse_expression(module, token, true, 0, helper, elem);
 
-				while (true) {
-					if (token->kind == TOKEN_COMMA)
-						errort(token, "Missing expression before ','\n");
+				if (!*elem)
+					errort(token, "Expected expression in array literal, not: '%'\n", arg_token(token));
 
-					ih_check(token, helper, 0);
-					token = internal_parse_expression(module, token, true, 0, helper, elem);
+				elem++;
 
-					if (!*elem)
-						errort(token, "Expected expression in array literal, not: '%'\n", arg_token(token));
+				if (token->kind == TOKEN_CLOSE_BRACE)
+					break;
 
-					elem++;
+				if (token->kind != TOKEN_COMMA) {
+					if (is_expression_starter(token->kind) && ih_test(token, helper, 0))
+						errort(token, "Missing ',' before expression\n");
 
-					if (token->kind == TOKEN_CLOSE_BRACE)
-						break;
-
-					if (token->kind != TOKEN_COMMA) {
-						if (is_expression_starter(token->kind) && ih_test(token, helper, 0))
-							errort(token, "Missing ',' before expression\n");
-
-						errort(token, "Unexpected token %, expected ',' or '}'\n", arg_token(token));
-					}
-
-					ih_check(token, helper, -1); // ,
-					token++;
+					errort(token, "Unexpected token %, expected ',' or '}'\n", arg_token(token));
 				}
+
+				ih_check(token, helper, -1); // ,
+				token++;
 			}
 
 			ih_leave(helper);
 			ih_check(token, helper, 0);
 			token++; // }
 
-			left->array.elems = elems;
-			left->array.elem_count = count;
-
+			left->array.elems = table;
 		} break;
 
 		case TOKEN_OPEN_PAREN: {
@@ -692,49 +702,42 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 			ih_enter(helper);
 			token++; // {
 
-			u64 count = 0;
-			Expression** elems = null;
+			u64 count = open->closure == open+1 ? 0 : open->comma_count+1;
+			ExpressionTable table = make_expr_table(count);
+			Expression** elem = expr_table_get(&table);
 
-			if (token->kind != TOKEN_CLOSE_PAREN) {
-				count = open->comma_count+1;
-				elems = stack_alloc(sizeof(Expression*)*count);
+			while (true) {
+				if (token->kind == TOKEN_COMMA)
+					errort(token, "Missing expression before ','\n");
 
-				Expression** elem = elems;
+				ih_check(token, helper, 0);
+				token = internal_parse_expression(module, token, true, 0, helper, elem);
 
-				while (true) {
-					if (token->kind == TOKEN_COMMA)
-						errort(token, "Missing expression before ','\n");
+				if (!*elem)
+					errort(token, "Expected expression in tuple, not: '%'\n", arg_token(token));
 
-					ih_check(token, helper, 0);
-					token = internal_parse_expression(module, token, true, 0, helper, elem);
+				elem++;
 
-					if (!*elem)
-						errort(token, "Expected expression in tuple, not: '%'\n", arg_token(token));
+				if (token->kind == TOKEN_CLOSE_PAREN)
+					break;
 
-					elem++;
+				if (token->kind != TOKEN_COMMA)
+					errort(token, "Unexpected token %, expected ',' or ')'\n",
+						arg_token(token)
+					);
 
-					if (token->kind == TOKEN_CLOSE_PAREN)
-						break;
+				ih_check(token, helper, -1);
+				token++;
 
-					if (token->kind != TOKEN_COMMA)
-						errort(token, "Unexpected token %, expected ',' or ')'\n",
-							arg_token(token)
-						);
-
-					ih_check(token, helper, -1);
-					token++;
-
-					if (token->kind == TOKEN_CLOSE_PAREN)
-						errort(token, "Missing expression after ','\n");
-				}
+				if (token->kind == TOKEN_CLOSE_PAREN)
+					errort(token, "Missing expression after ','\n");
 			}
 
 			ih_leave(helper);
 			ih_check(token, helper, 0);
 			token++;
 
-			left->tuple.elems = elems;
-			left->tuple.elem_count = count;
+			left->tuple.elems = table;
 			// print("Tuple parse finished.\n");
 
 		} break;
@@ -769,12 +772,12 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 
 			if (token->kind == TOKEN_DOT_DOT) {
 				left->kind = EXPR_BINARY_SPAN; // [a..b]
-				left->span.left = lexpr;
+				left->left = lexpr;
 				ih_check(token, helper, -1);  // ..
 				ih_check(token+1, helper, 0); // b
-				token = internal_parse_expression(module, token+1, allow_equals, 0, helper, &left->span.right);
+				token = internal_parse_expression(module, token+1, allow_equals, 0, helper, &left->right);
 
-				if (!left->span.right)
+				if (!left->right)
 					errort(token, "Span extent expression missing\n");
 			}
 
@@ -798,6 +801,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 		} break;
 
 		default:
+			print("token = %\n", arg_token(token));
 			assert_unreachable();
 			break;
 	}
@@ -877,16 +881,17 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 			case TOKEN_OR:
 			GOTO_BINARY_OP: {
 				expr->kind = expr_kind_lut[token->kind];
-				expr->binary.optoken = token;
-				expr->binary.left = left;
+				expr->flags |= EXPR_FLAG_BINARY;
+				expr->optoken = token;
+				expr->left = left;
 
 				token++;
 
 				ih_check(token, helper, 0);
-				token = internal_parse_expression(module, token, allow_equals, precedence, helper, &expr->binary.right);
+				token = internal_parse_expression(module, token, allow_equals, precedence, helper, &expr->right);
 
-				if (!expr->binary.right) {
-					errort(token, "Expected expression after binary '%' operator\n", arg_token(expr->binary.optoken));
+				if (!expr->right) {
+					errort(token, "Expected expression after binary '%' operator\n", arg_token(expr->optoken));
 				}
 			} break;
 
@@ -914,9 +919,9 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 			case TOKEN_OPEN_PAREN: {
 				*expr = (Expression){
 					.kind           = EXPR_CALL,
-					.call.function  = left,
-					.call.arg_count = 0,
-					.call.args      = null,
+					.call = {
+						.function = left,
+					},
 				};
 
 				Token* open = token;
@@ -924,67 +929,61 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 				if (!open->closure)
 					errort(open, "Call arguments missing closing ')'\n");
 
-				Expression** elems = null;
-				u64 count = 0;
+				u64 count = open->closure == open+1 ? 0 : open->comma_count+1;
+				ExpressionTable table = make_expr_table(count);
+				Expression** elem = expr_table_get(&table);
 
 				ih_enter(helper);
 				token++; // (
 
-				if (token->kind != TOKEN_CLOSE_PAREN) {
-					count = open->comma_count+1;
-					elems = stack_alloc(sizeof(Expression*)*count);
-					Expression** elem = elems;
+				while (true) {
+					ih_check(token, helper, 0);
+					token = internal_parse_expression(module, token, allow_equals, 0, helper, elem);
 
-					while (true) {
-						ih_check(token, helper, 0);
-						token = internal_parse_expression(module, token, allow_equals, 0, helper, elem);
+					if (!*elem)
+						errort(token, "Invalid function argument, expected expression, not: '%'\n", arg_token(token));
 
-						if (!*elem)
-							errort(token, "Invalid function argument, expected expression, not: '%'\n", arg_token(token));
+					elem++;
 
-						elem++;
-
-						if (token->kind == TOKEN_COMMA) {
-							ih_check(token, helper, -1);
-							token++;
-							continue;
-						}
-
-						if (token->kind == TOKEN_CLOSE_PAREN)
-							break;
-
-						errort(token, "Unexpected token in function arguments: %\n", arg_token(token));
+					if (token->kind == TOKEN_COMMA) {
+						ih_check(token, helper, -1);
+						token++;
+						continue;
 					}
+
+					if (token->kind == TOKEN_CLOSE_PAREN)
+						break;
+
+					errort(token, "Unexpected token in function arguments: %\n", arg_token(token));
 				}
 
-				expr->call.args = elems;
-				expr->call.arg_count = count;
+				expr->call.args = table;
 
 				ih_check(token, helper, -1);
 				ih_leave(helper);
 				token++;
-
 			} break;
 
 			case TOKEN_IF: {
 				*expr = (Expression){
 					.kind = EXPR_TERNARY_IF_ELSE,
-					.ternary.left = left,
+					.flags = EXPR_FLAG_TERNARY,
+					.left = left,
 				};
 
 				ih_check(token+1, helper, 0);
-				token = internal_parse_expression(module, token+1, true, precedence, helper, &expr->ternary.middle);
+				token = internal_parse_expression(module, token+1, true, precedence, helper, &expr->middle);
 
-				if (!expr->ternary.middle)
+				if (!expr->middle)
 					errort(token, "Condition expression missing from 'if else' operator, unexpected: '%'\n", arg_token(token));
 
 				if (token->kind != TOKEN_ELSE)
 					errort(token, "Expected 'else' not: %\n", arg_token(token));
 
 				ih_check(token+1, helper, 0);
-				token = internal_parse_expression(module, token+1, allow_equals, precedence, helper, &expr->ternary.right);
+				token = internal_parse_expression(module, token+1, allow_equals, precedence, helper, &expr->right);
 
-				if (!expr->ternary.right)
+				if (!expr->right)
 					errort(token, "Expected expression after 'else', not: '%'\n", arg_token(token));
 			} break;
 		}
