@@ -1,5 +1,5 @@
 compiler = clang
-debug    = -DDEBUG -ggdb -Og
+debug    = -DDEBUG -ggdb -O0
 release  = -O3
 
 args = \
