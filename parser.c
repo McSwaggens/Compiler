@@ -918,7 +918,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 
 			case TOKEN_OPEN_PAREN: {
 				*expr = (Expression){
-					.kind           = EXPR_CALL,
+					.kind = EXPR_CALL,
 					.call = {
 						.function = left,
 					},
@@ -929,14 +929,15 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 				if (!open->closure)
 					errort(open, "Call arguments missing closing ')'\n");
 
-				u64 count = open->closure == open+1 ? 0 : open->comma_count+1;
+				Token* closure = open->closure;
+				u64 count = open+1 == closure ? 0 : open->comma_count+1;
 				ExpressionTable table = make_expr_table(count);
 				Expression** elem = expr_table_get(&table);
 
 				ih_enter(helper);
 				token++; // (
 
-				while (true) {
+				while (token != closure) {
 					ih_check(token, helper, 0);
 					token = internal_parse_expression(module, token, allow_equals, 0, helper, elem);
 
