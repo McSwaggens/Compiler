@@ -3,21 +3,11 @@
 // ------------------------------------ //
 
 static void* alloc_virtual_page(u64 size) {
-	void* page = (void*)system_call(
-		LINUX_SYSCALL_MMAP,
-		0,
-		(size+4095) & -4096, // Raise to page size
-		LINUX_MMAP_PROTECTION_READ | LINUX_MMAP_PROTECTION_WRITE,
-		0x22,
-		-1,
-		0
-	);
-
-	return page;
+	return macos_allocate_virtual_pages(size);
 }
 
-static void free_virtual_page(void* page, u64 size) {
-	system_call(LINUX_SYSCALL_MUNMAP, (s64)page, size, 0, 0, 0, 0);
+static void free_virtual_pages(void* page, u64 size) {
+	macos_free_virtual_pages(page, size);
 }
 
 // ------------------------------------ //

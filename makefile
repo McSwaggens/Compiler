@@ -1,14 +1,11 @@
-compiler = clang
-debug    = -DDEBUG -ggdb -O0
+debug    = -DDEBUG -g3 -O0
 release  = -O3
 
 args = \
-	-mcmodel=medium\
 	-ffreestanding\
 	-fno-builtin-free\
 	-fno-builtin-realloc\
 	-std=c99\
-	-march=znver3 \
 	$(debug)
 
 	# -nostartfiles\
@@ -16,14 +13,14 @@ args = \
 	# -nolibc\
 
 compiler: *.c *.h *.asm makefile
+	clang compiler.c $(args) -o compiler
+
+linux: *.c *.h *.asm makefile
 	nasm -felf64 extra.asm -o assembler_stuff.o
-	$(compiler) compiler.c assembler_stuff.o $(args) -o compiler
-	rm assembler_stuff.o
 	# objdump -drwCS --no-addresses --no-show-raw-insn --visualize-jumps -Mintel -Mx86-64 compiler > compiler.asm
-	objdump -drwCS --no-addresses --no-show-raw-insn -Mintel -Mx86-64 compiler > compiler.asm
 
 clean:
-	rm ./compiler
+	rm *.o ./compiler
 
 run: compiler
 	fish -C "time ./compiler"

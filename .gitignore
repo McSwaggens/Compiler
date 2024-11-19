@@ -1,5 +1,7 @@
-/.kakrc
-/.vscode
-/compiler
-/compiler.asm
-/tags
+.kakrc
+compiler
+compiler.asm
+*.o
+tags
+compiler.dSYM/
+.kak.tags.namecache

@@ -1,4 +1,5 @@
 #include "general.c"
+#include "macos.c"
 #include "alloc.c"
 #include "global_string_table.c"
 #include "print.c"
@@ -79,7 +80,7 @@ int main(int argc, char* argv[]) {
 	ir_init();
 	mm_init();
 
-	list_dir(".");
+	// list_dir(".");
 
 	// @Todo: Load all files in directory
 

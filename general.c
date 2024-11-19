@@ -5,12 +5,6 @@
 
 // ------------------------------------ //
 
-static void exit_program(void) {
-	system_call(LINUX_SYSCALL_EXIT, 0, 0, 0, 0, 0, 0);
-}
-
-// ------------------------------------ //
-
 static u64 count_cstring(const char* s) {
 	const char* begin = s;
 	while (*s) ++s;
