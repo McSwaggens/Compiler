@@ -2,7 +2,6 @@
 #include "print.h"
 #include "alloc.h"
 #include "semantic.h"
-#include "mm.h"
 
 static inline Expression** expr_table_get(ExpressionTable* table) {
 	if (table->count <= EXPRESSION_TABLE_INLINE_COUNT)
@@ -1030,10 +1029,6 @@ static Token* parse_variable_declaration(Module* module, Scope* scope, Token* to
 	bool is_const = (var->flags & VAR_FLAG_CONSTANT);
 	var->name = token;
 	token++;
-
-	if (!is_const) {
-		var->stack = 0;
-	}
 
 	if (token->kind != TOKEN_COLON)
 		errort(token, "Variable declaration expected ':', not: %\n", arg_token(token));

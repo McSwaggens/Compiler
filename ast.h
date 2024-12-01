@@ -3,7 +3,6 @@
 
 #include "type.h"
 #include "lexer.h"
-#include "mm.h"
 
 typedef struct Module       Module;
 typedef struct Function     Function;
@@ -319,7 +318,6 @@ struct Variable {
 	Expression* type_expr;
 	Expression* init_expr;
 	TypeID type;
-	M32 stack;
 };
 
 struct Statement {

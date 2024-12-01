@@ -6,8 +6,8 @@ static Type ts_table[TYPE_TABLE_SIZE] = { 0 };
 static u32 ts_table_head;
 
 static inline TypeKind ts_get_kind(TypeID  id) { return id >> TYPEID_INDEX_BITS; }
-static inline u32      ts_get_index(TypeID id) { return id & ((1llu<<TYPEID_INDEX_BITS)-1);  }
-static inline Type*    ts_get_type(TypeID id)       { return ts_table + ts_get_index(id); }
+static inline u32      ts_get_index(TypeID id) { return id & ((1llu<<TYPEID_INDEX_BITS)-1); }
+static inline Type*    ts_get_type(TypeID id)  { return ts_table + ts_get_index(id); }
 static inline u64      ts_get_size(TypeID id)  { return ts_get_type(id)->size; }
 
 static void ts_init(void) {
@@ -289,6 +289,17 @@ static TypeID ts_get_signed(TypeID type) {
 	}
 
 	assert_unreachable();
+}
+
+static TypeID ts_get_function_return_type(TypeID type) {
+	print("type = %\n", arg_type(type));
+	assert(ts_get_kind(type) == TYPE_KIND_FUNCTION);
+	return ts_get_type(type)->output;
+}
+
+static TypeID ts_get_function_input_type(TypeID type) {
+	assert(ts_get_kind(type) == TYPE_KIND_FUNCTION);
+	return ts_get_type(type)->input;
 }
 
 static bool ts_is_integral_type(TypeID type) {

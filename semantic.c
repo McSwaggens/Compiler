@@ -72,7 +72,7 @@ static bool can_force_cast(TypeID a, TypeID b) {
 static Function* find_function(ScanHelper* helper, String name, TypeID* arg_types, u32 arg_type_count) {
 	Module* module = helper->module;
 
-	for (u32 i = 0; module->function_count; i++) {
+	for (u32 i = 0; i < module->function_count; i++) {
 		Function* func = &module->functions[i];
 
 		if (func->param_count != arg_type_count)
@@ -81,18 +81,12 @@ static Function* find_function(ScanHelper* helper, String name, TypeID* arg_type
 		if (name.data != func->name->string.data)
 			continue;
 
-		bool fail = false;
-		for (u32 i = 0; i < arg_type_count; i++) {
-			if (!can_implicit_cast(arg_types[i], func->params[i].type)) {
-				fail = true;
-				break;
-			}
-		}
-
-		if (fail)
-			continue;
+		for (u32 i = 0; i < arg_type_count; i++)
+			if (!can_implicit_cast(arg_types[i], func->params[i].type))
+				goto skip;
 
 		return func;
+		skip: continue;
 	}
 
 	return null;
@@ -121,7 +115,7 @@ static UserTypeResult find_usertype(ScanHelper* helper, String name) {
 		return (UserTypeResult){ TYPE_KIND_ENUM, { .e = en } };
 	}
 
-	return (UserTypeResult){ };
+	return (UserTypeResult){ 0, null };
 }
 
 static Struct* find_struct(ScanHelper* helper, String name) {
@@ -427,12 +421,37 @@ static bool is_type_indexable(TypeID tid) {
 }
 
 static void scan_call(ScanHelper* helper, Scope* scope, Expression* expr) {
-	scan_expression(helper, scope, expr->call.function);
-	Expression** args = expr_table_get(&expr->call.args);
+	Expression* func_expr = expr->call.function;
 
-	for (u64 i = 0; i < expr->call.args.count; i++) {
-		scan_expression(helper, scope, args[i]);
+	// Make sure function expression gets evaluated before params.
+	if (expr->call.function->kind != EXPR_IDENTIFIER_FORMAL) {
+		scan_expression(helper, scope, func_expr);
 	}
+
+	u32 arg_count = expr->call.args.count;
+	Expression** args = expr_table_get(&expr->call.args);
+	TypeID arg_types[arg_count];
+
+	for (u32 i = 0; i < arg_count; i++) {
+		scan_expression(helper, scope, args[i]);
+		arg_types[i] = args[i]->type;
+	}
+
+	if (func_expr->kind == EXPR_IDENTIFIER_FORMAL) {
+		// Manually scan the subexpression.
+		String name = func_expr->term.token->string;
+		Function* function = find_function(helper, name, arg_types, arg_count);
+
+		if (!function)
+			errore(func_expr, 3, "No such function called: '%'.\n", arg_string(name));
+
+		func_expr->term.func = function;
+		print("function->type = %\n", arg_type(function->type));
+		func_expr->type = function->type;
+		func_expr->flags |= EXPR_FLAG_REF;
+	}
+
+	expr->type = ts_get_function_return_type(func_expr->type);
 }
 
 static void scan_dot(ScanHelper* helper, Scope* scope, Expression* expr) {
@@ -732,11 +751,57 @@ static void scan_function(ScanHelper* helper, Function* func) {
 	scan_code(helper, &func->code);
 }
 
+static void prescan_function(ScanHelper* helper, Function* func) {
+	Module* module = helper->module;
+	Expression* retexpr = func->return_type_expr;
+
+	TypeID output_type = TYPE_EMPTY_TUPLE;
+	TypeID input_type  = TYPE_EMPTY_TUPLE;
+
+	if (retexpr) {
+		scan_expression(helper, &module->scope, func->return_type_expr);
+
+		if (retexpr->type != TYPE_TYPEID)
+			errore(retexpr, 5, "Invalid return type: %\n", arg_expression(retexpr));
+
+		if (!(retexpr->flags & EXPR_FLAG_CONSTANT))
+			errore(retexpr, 5, "Return type must be a constant.\n", arg_expression(retexpr));
+
+		output_type = func->return_type_expr->value;
+	}
+
+	TypeID param_types[func->param_count];
+	for (u32 i = 0; i < func->param_count; i++) {
+		Variable* param = &func->params[i];
+		scan_variable(helper, &module->scope, param);
+		param_types[i] = param->type;
+	}
+
+	input_type = ts_get_tuple(param_types, func->param_count);
+
+	func->type = ts_get_func(input_type, output_type);
+
+}
+
+static void prescan(ScanHelper* helper)
+{
+	Module* module = helper->module;
+
+	for (u32 i = 0; i < module->function_count; i++) {
+		Function* function = &module->functions[i];
+		print("Prescanning function: '%'\n", arg_string(function->name->string));
+		prescan_function(helper, function);
+		print("Function '%' has type %\n", arg_string(function->name->string), arg_type(function->type));
+	}
+}
+
 static void scan_module(Module* module) {
 	ScanHelper helper = (ScanHelper){
 		.loop = null,
 		.module = module,
 	};
+
+	prescan(&helper);
 
 	print("Scanning...\n");
 	for (u32 i = 0; i < module->function_count; i++) {

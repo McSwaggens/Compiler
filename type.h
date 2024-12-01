@@ -100,6 +100,8 @@ static TypeID ts_get_subtype(TypeID type);
 static TypeID ts_get_integral_type(TypeID type);
 static TypeID ts_get_unsigned(TypeID type);
 static TypeID ts_get_signed(TypeID type);
+static TypeID ts_get_function_return_type(TypeID type);
+static TypeID ts_get_function_input_type(TypeID type);
 
 static bool ts_is_int(TypeID type);
 static bool ts_is_unsigned(TypeID type);

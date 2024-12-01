@@ -1,7 +1,8 @@
 #include "ir.h"
 #include "ast.h"
 
-static Value value_table[1llu<<32llu];
+// static Value value_table[1llu<<32llu] = { 0 };
+static Value* value_table = null;
 static V32 value_table_index_head;
 static ProcedureList procedures;
 
@@ -11,6 +12,7 @@ static ProcedureList procedures;
 // -------------------------------------------------- //
 
 static void ir_init(void) {
+	value_table = alloc_virtual_page((1llu<<32llu) * sizeof(Value));
 	value_table_index_head = IR_PRELOAD_END+1;
 	for (s64 i = IR_PRELOAD_BEGIN; i <= IR_PRELOAD_END; i++) {
 		*ir_get_value(ir_int(i)) = (Value){ .const_int = i, .is_const = true };
