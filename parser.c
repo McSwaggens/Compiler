@@ -1429,6 +1429,7 @@ static Token* parse_params(Module* module, Function* func, Token* token, Indent1
 
 			param->flags = VAR_FLAG_PARAM;
 			token = parse_variable_declaration(module, &module->scope, token, indent+1, param);
+			scope_push_var(&func->code.scope, param);
 			param++;
 
 			if (token->kind == TOKEN_CLOSE_PAREN)
