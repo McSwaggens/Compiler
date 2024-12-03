@@ -165,6 +165,8 @@ static void scan_identifier(ScanHelper* helper, Scope* scope, Expression* expr) 
 		errore(expr, 1, "Use of variable '%' before it's declaration.\n", arg_string(name));
 
 	errore(expr, 1, "Variable with name '%' does not exist.\n", arg_string(name));
+
+	expr->type = var->type;
 }
 
 static void scan_array(ScanHelper* helper, Scope* scope, Expression* expr) {
@@ -329,10 +331,12 @@ static void scan_binary_add(ScanHelper* helper, Scope* scope, Expression* expr) 
 	ltype = expr->left->type;
 	rtype = expr->right->type;
 
-	TypeID type = get_preferred_integral(ltype, rtype);
+	TypeID preferred_type = get_preferred_integral(ltype, rtype);
 
-	insert_cast_expression(helper, &expr->left,  type);
-	insert_cast_expression(helper, &expr->right, type);
+	insert_cast_expression(helper, &expr->left,  preferred_type);
+	insert_cast_expression(helper, &expr->right, preferred_type);
+
+	expr->type = preferred_type;
 }
 
 static void scan_binary_sub(ScanHelper* helper, Scope* scope, Expression* expr) {
@@ -622,13 +626,24 @@ static void scan_variable(ScanHelper* helper, Scope* scope, Variable* var) {
 	if (var->type_expr) {
 		scan_expression(helper, scope, var->type_expr);
 		var->type = ir_get_const_int(var->type_expr->value);
+
+		if (var->type == TYPE_EMPTY_TUPLE)
+			errore(var->type_expr, 3, "Cannot create variable with empty tuple type.\n");
 	}
 
 	if (var->init_expr) {
 		scan_expression(helper, scope, var->init_expr);
 
+		if (!var->type_expr)
+		{
+			var->type = var->init_expr->type;
+
+			if (var->type == TYPE_EMPTY_TUPLE)
+				errore(var->init_expr, 3, "Assignment to empty tuple is not allowed.\n");
+		}
 		// if ((var->init_expr->flags & EXPR_FLAG_CONSTANT)
 	}
+
 
 	// @Todo: Get TypeID from type_expr
 }
