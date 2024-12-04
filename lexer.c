@@ -916,11 +916,15 @@ static void lex(Module* module) {
 				if (test_keyword(&lexer, "while",   TOKEN_WHILE)) break;
 				goto GOTO_PARSE_IDENTIFIER;
 
+			case 'n':
+				if (test_keyword(&lexer, "null",    TOKEN_NULL)) break;
+				goto GOTO_PARSE_IDENTIFIER;
+
 			case 'G': case 'H': case 'I': case 'J': case 'K':
 			case 'L': case 'M': case 'N': case 'O': case 'P':
 			case 'Q': case 'R': case 'S': case 'T': case 'U':
 			case 'V': case 'W': case 'X': case 'Y': case 'Z':
-			case 'g': case 'j': case 'k': case 'l' :case 'n':
+			case 'g': case 'j': case 'k': case 'l':
 			case 'h': case 'p': case 'v': case 'x': case 'y':
 			case 'z':
 			GOTO_PARSE_IDENTIFIER: {

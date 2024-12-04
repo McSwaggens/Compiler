@@ -482,7 +482,7 @@ static void scan_expression(ScanHelper* helper, Scope* scope, Expression* expr) 
 		case EXPR_BASETYPE_ENUM:
 		case EXPR_FUNCTION:
 		case EXPR_UNARY_IMPLICIT_CAST:
-			break;
+			break; // parser.c sets up these expressions. No scan needed.
 
 		case EXPR_IDENTIFIER_FORMAL: {
 			scan_formal_usertype_identifier(helper, scope, expr);

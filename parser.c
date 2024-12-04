@@ -529,6 +529,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 				.kind  = EXPR_NULL,
 				.flags = EXPR_FLAG_CONSTANT | EXPR_FLAG_CONSTANT,
 				.type = ts_get_ptr(TYPE_BYTE),
+				.term.token = token,
 				.value = ir_int(0),
 			};
 			token++;
