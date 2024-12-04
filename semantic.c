@@ -644,6 +644,13 @@ static void scan_variable(ScanHelper* helper, Scope* scope, Variable* var) {
 		// if ((var->init_expr->flags & EXPR_FLAG_CONSTANT)
 	}
 
+	if (var->type_expr && var->init_expr)
+	{
+		if (!can_coercive_cast(var->init_expr->type, var->type))
+			errore(var->init_expr, 3, "Cannot cast expression to type '%'\n", arg_type(var->type));
+
+		insert_cast_expression(helper, &var->init_expr, var->type);
+	}
 
 	// @Todo: Get TypeID from type_expr
 }
