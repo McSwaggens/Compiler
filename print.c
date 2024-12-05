@@ -325,7 +325,7 @@ static void write_type(OutputBuffer* buffer, TypeID type) {
 			write_type(buffer, info->input);
 			if (!is_input_tuple) write_char(buffer, ')');
 			write_cstring(buffer, " -> ");
-			write_type(buffer, info->input);
+			write_type(buffer, info->output);
 		} break;
 	}
 }

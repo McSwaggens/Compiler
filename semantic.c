@@ -786,8 +786,8 @@ static void prescan_function(ScanHelper* helper, Function* func) {
 	Module* module = helper->module;
 	Expression* retexpr = func->return_type_expr;
 
-	TypeID output_type = TYPE_EMPTY_TUPLE;
 	TypeID input_type  = TYPE_EMPTY_TUPLE;
+	TypeID output_type = TYPE_EMPTY_TUPLE;
 
 	if (retexpr) {
 		scan_expression(helper, &module->scope, func->return_type_expr);
@@ -798,7 +798,7 @@ static void prescan_function(ScanHelper* helper, Function* func) {
 		if (!(retexpr->flags & EXPR_FLAG_CONSTANT))
 			errore(retexpr, 5, "Return type must be a constant.\n", arg_expression(retexpr));
 
-		output_type = func->return_type_expr->value;
+		output_type = ir_get_const_int(func->return_type_expr->value);
 	}
 
 	TypeID param_types[func->param_count];
