@@ -6,10 +6,15 @@
 typedef struct Type Type;
 typedef enum TypeKind TypeKind;
 typedef enum PrimitiveType PrimitiveType;
+typedef enum TypeFlags TypeFlags;
 typedef u32 TypeID;
 
 #define TYPEID_KIND_BITS 3
 #define TYPEID_INDEX_BITS (sizeof(TypeID)*8 - TYPEID_KIND_BITS)
+
+enum TypeFlags {
+	TYPE_FLAG_PTR_DESCENDANT,
+};
 
 enum TypeKind {
 	TYPE_KIND_PRIMITIVE = 0,
@@ -75,6 +80,7 @@ struct Type {
 	TypeID input;
 	TypeID output;
 	TypeID* elements;
+	TypeFlags flags;
 	struct Struct* ustruct;
 	struct Enum* uenum;
 	u64 length; // Length of fixed array and tuple.
@@ -86,7 +92,7 @@ static void ts_init(void);
 
 static inline TypeKind ts_get_kind(TypeID id);
 static inline u32      ts_get_index(TypeID id);
-static inline Type*    ts_get_type(TypeID id);
+static inline Type*    ts_get_info(TypeID id);
 static inline u64      ts_get_size(TypeID id);
 static inline u64      ts_get_tuple_length(TypeID type);
 static inline u64      ts_get_fixed_length(TypeID type);

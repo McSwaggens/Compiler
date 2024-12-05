@@ -7,44 +7,44 @@ static u32 ts_table_head;
 
 static inline TypeKind ts_get_kind(TypeID  id) { return id >> TYPEID_INDEX_BITS; }
 static inline u32      ts_get_index(TypeID id) { return id & ((1llu<<TYPEID_INDEX_BITS)-1); }
-static inline Type*    ts_get_type(TypeID id)  { return ts_table + ts_get_index(id); }
-static inline u64      ts_get_size(TypeID id)  { return ts_get_type(id)->size; }
+static inline Type*    ts_get_info(TypeID id)  { return ts_table + ts_get_index(id); }
+static inline u64      ts_get_size(TypeID id)  { return ts_get_info(id)->size; }
 
 static void ts_init(void) {
 	ts_table_head= LARGEST_CORE_TYPE_INDEX+1;
 
-	*ts_get_type(TYPE_BYTE)    = (Type){ .size = 1 };
-	*ts_get_type(TYPE_BOOL)    = (Type){ .size = 1 };
-	*ts_get_type(TYPE_TYPEID)  = (Type){ .size = 8 };
-	*ts_get_type(TYPE_INT8)    = (Type){ .size = 1 };
-	*ts_get_type(TYPE_INT16)   = (Type){ .size = 2 };
-	*ts_get_type(TYPE_INT32)   = (Type){ .size = 4 };
-	*ts_get_type(TYPE_INT64)   = (Type){ .size = 8 };
-	*ts_get_type(TYPE_UINT8)   = (Type){ .size = 1 };
-	*ts_get_type(TYPE_UINT16)  = (Type){ .size = 2 };
-	*ts_get_type(TYPE_UINT32)  = (Type){ .size = 4 };
-	*ts_get_type(TYPE_UINT64)  = (Type){ .size = 8 };
-	*ts_get_type(TYPE_FLOAT32) = (Type){ .size = 4 };
-	*ts_get_type(TYPE_FLOAT64) = (Type){ .size = 8 };
+	*ts_get_info(TYPE_BYTE)    = (Type){ .size = 1 };
+	*ts_get_info(TYPE_BOOL)    = (Type){ .size = 1 };
+	*ts_get_info(TYPE_TYPEID)  = (Type){ .size = 8 };
+	*ts_get_info(TYPE_INT8)    = (Type){ .size = 1 };
+	*ts_get_info(TYPE_INT16)   = (Type){ .size = 2 };
+	*ts_get_info(TYPE_INT32)   = (Type){ .size = 4 };
+	*ts_get_info(TYPE_INT64)   = (Type){ .size = 8 };
+	*ts_get_info(TYPE_UINT8)   = (Type){ .size = 1 };
+	*ts_get_info(TYPE_UINT16)  = (Type){ .size = 2 };
+	*ts_get_info(TYPE_UINT32)  = (Type){ .size = 4 };
+	*ts_get_info(TYPE_UINT64)  = (Type){ .size = 8 };
+	*ts_get_info(TYPE_FLOAT32) = (Type){ .size = 4 };
+	*ts_get_info(TYPE_FLOAT64) = (Type){ .size = 8 };
 
-	*ts_get_type(ts_get_index(TYPE_EMPTY_TUPLE)) = (Type){ .size = 0, .length = 0 };
+	*ts_get_info(ts_get_index(TYPE_EMPTY_TUPLE)) = (Type){ .size = 0, .length = 0 };
 }
 
 static inline u64 ts_get_tuple_length(TypeID type) {
 	assert(type);
 	assert(ts_get_kind(type) == TYPE_KIND_TUPLE);
-	return ts_get_type(type)->length;
+	return ts_get_info(type)->length;
 }
 
 static inline u64 ts_get_fixed_length(TypeID type) {
 	assert(type);
 	assert(ts_get_kind(type) == TYPE_KIND_FIXED);
-	return ts_get_type(type)->length;
+	return ts_get_info(type)->length;
 }
 
 static inline TypeID ts_create(TypeKind kind, Type value) {
 	TypeID id = MAKE_TYPEID(kind, ts_table_head++);
-	Type* type = ts_get_type(id);
+	Type* type = ts_get_info(id);
 	*type = value;
 	return id;
 }
@@ -64,7 +64,7 @@ static void xtable_push(XTable* table, TypeExtent ext) {
 static TypeID ts_get_ptr(TypeID subtype) {
 	assert(subtype);
 
-	Type* subinfo = ts_get_type(subtype);
+	Type* subinfo = ts_get_info(subtype);
 
 	if (subinfo->ptr)
 		return subinfo->ptr;
@@ -82,7 +82,7 @@ static TypeID ts_get_ptr(TypeID subtype) {
 static TypeID ts_get_array(TypeID subtype) {
 	assert(subtype);
 
-	Type* subinfo = ts_get_type(subtype);
+	Type* subinfo = ts_get_info(subtype);
 
 	if (subinfo->array)
 		return subinfo->array;
@@ -102,8 +102,8 @@ static TypeID ts_get_func(TypeID input, TypeID output) {
 	assert(input);
 	assert(output);
 
-	Type* input_info  = ts_get_type(input);
-	Type* output_info = ts_get_type(output);
+	Type* input_info  = ts_get_info(input);
+	Type* output_info = ts_get_info(output);
 
 	XTable* xtable = &input_info->xtable;
 	for (u64 i = 0; i < xtable->length; i++) {
@@ -137,7 +137,7 @@ static TypeID ts_get_tuple(TypeID* types, u64 count) {
 		return TYPE_EMPTY_TUPLE;
 
 	TypeID head_id = types[0];
-	Type* head_info = ts_get_type(head_id);
+	Type* head_info = ts_get_info(head_id);
 
 	if (count == 1)
 		return head_id;
@@ -156,7 +156,7 @@ static TypeID ts_get_tuple(TypeID* types, u64 count) {
 		if (ts_get_kind(ext->type) != TYPE_KIND_TUPLE)
 			continue;
 
-		if (count > 2 && !compare(types+2, ts_get_type(ext->type)->elements+2, (count-2)*sizeof(TypeID)))
+		if (count > 2 && !compare(types+2, ts_get_info(ext->type)->elements+2, (count-2)*sizeof(TypeID)))
 			continue;
 
 		return ext->type;
@@ -188,7 +188,7 @@ static TypeID ts_get_fixed(TypeID subtype, u64 length) {
 	assert(subtype);
 	assert(length);
 
-	Type* subinfo = ts_get_type(subtype);
+	Type* subinfo = ts_get_info(subtype);
 
 	XTable* xtable = &subinfo->xtable;
 	for (u64 i = 0; i < xtable->length; i++) {
@@ -223,7 +223,7 @@ static TypeID ts_get_fixed(TypeID subtype, u64 length) {
 static TypeID ts_get_subtype(TypeID type) {
 	TypeKind kind = ts_get_kind(type);
 	assert(ts_is_specifier(type));
-	Type* p = ts_get_type(type);
+	Type* p = ts_get_info(type);
 	return p->subtype;
 }
 
@@ -294,12 +294,12 @@ static TypeID ts_get_signed(TypeID type) {
 static TypeID ts_get_function_return_type(TypeID type) {
 	print("type = %\n", arg_type(type));
 	assert(ts_get_kind(type) == TYPE_KIND_FUNCTION);
-	return ts_get_type(type)->output;
+	return ts_get_info(type)->output;
 }
 
 static TypeID ts_get_function_input_type(TypeID type) {
 	assert(ts_get_kind(type) == TYPE_KIND_FUNCTION);
-	return ts_get_type(type)->input;
+	return ts_get_info(type)->input;
 }
 
 static bool ts_is_integral_type(TypeID type) {

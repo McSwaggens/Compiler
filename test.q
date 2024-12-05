@@ -3,5 +3,6 @@ Foo():
 
 Add(a: int, b: int) -> int:
 	c : *int = null
+	x : int = @c
 	return c
 

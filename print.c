@@ -258,7 +258,7 @@ static void write_type(OutputBuffer* buffer, TypeID type) {
 		return;
 	}
 
-	Type* info = ts_get_type(type);
+	Type* info = ts_get_info(type);
 
 	switch (ts_get_kind(type)) {
 		case TYPE_KIND_PRIMITIVE: {
@@ -391,8 +391,8 @@ static void write_expression(OutputBuffer* buffer, Expression* expr) {
 			write_cstring(buffer, "(");
 			write_expression(buffer, expr->left);
 			write_cstring(buffer, " IMPLICIT_CAST ");
-			write_cstring(buffer, " TODO_TYPE_VALUE_PRINTING");
-			// write_type(buffer, expr->type);
+			// write_cstring(buffer, " TODO_TYPE_VALUE_PRINTING");
+			write_type(buffer, expr->type);
 			write_cstring(buffer, ")");
 		} break;
 

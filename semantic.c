@@ -45,6 +45,12 @@ static bool can_implicit_cast(TypeID a, TypeID b) {
 	if (a == b)
 		return true;
 
+	if (a == ts_get_ptr(TYPE_BYTE) && ts_is_ptr(b))
+		return true;
+
+	if (ts_is_ptr(a) && b == ts_get_ptr(TYPE_BYTE))
+		return true;
+
 	return false;
 }
 
@@ -634,8 +640,7 @@ static void scan_variable(ScanHelper* helper, Scope* scope, Variable* var) {
 	if (var->init_expr) {
 		scan_expression(helper, scope, var->init_expr);
 
-		if (!var->type_expr)
-		{
+		if (!var->type_expr) {
 			var->type = var->init_expr->type;
 
 			if (var->type == TYPE_EMPTY_TUPLE)
@@ -644,15 +649,19 @@ static void scan_variable(ScanHelper* helper, Scope* scope, Variable* var) {
 		// if ((var->init_expr->flags & EXPR_FLAG_CONSTANT)
 	}
 
-	if (var->type_expr && var->init_expr)
-	{
+	if (var->type_expr && var->init_expr) {
 		if (!can_coercive_cast(var->init_expr->type, var->type))
-			errore(var->init_expr, 3, "Cannot cast expression to type '%'\n", arg_type(var->type));
+			errore(var->init_expr, 3, "Cannot cast '%' to '%'\n", arg_type(var->init_expr->type), arg_type(var->type));
 
 		insert_cast_expression(helper, &var->init_expr, var->type);
 	}
 
-	// @Todo: Get TypeID from type_expr
+	print("Scanned variable declaration:\n\tname = '%'\n\ttype = %\n\tinit_expr = %\n\tinit_expr->type = %\n",
+		arg_token(var->name),
+		arg_type(var->type),
+		arg_expression(var->init_expr),
+		arg_type(var->init_expr ? var->init_expr->type : TYPE_EMPTY_TUPLE)
+	);
 }
 
 static void scan_branch(ScanHelper* helper, Scope* scope, Branch* branch) {
