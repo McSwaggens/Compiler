@@ -5,3 +5,5 @@ compiler.asm
 tags
 compiler.dSYM/
 .kak.tags.namecache
+.DS_Store
+*.kak.*
