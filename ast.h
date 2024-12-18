@@ -27,6 +27,7 @@ typedef enum StatementKind  StatementKind;
 typedef enum ExpressionKind ExpressionKind;
 typedef enum BranchKind     BranchKind;
 typedef enum ClauseKind     ClauseKind;
+typedef enum AstKind        AstKind;
 
 typedef enum ScopeFlags      ScopeFlags;
 typedef enum VariableFlags   VariableFlags;
@@ -65,6 +66,7 @@ enum ExpressionKind {
 	EXPR_IDENTIFIER_CONSTANT,
 	EXPR_IDENTIFIER_FORMAL,
 	EXPR_IDENTIFIER_VARIABLE,
+	EXPR_IDENTIFIER_STRUCT_FIELD,
 	EXPR_ARRAY,                   // {a, b}
 	EXPR_TUPLE,                   // (a, b)
 	EXPR_SPEC_PTR,                //   *e
@@ -212,12 +214,19 @@ struct ExpressionTable {
 static inline Expression** expr_table_get(ExpressionTable* table);
 static inline ExpressionTable make_expr_table(u64 count);
 
+enum AstKind {
+	AST_STATEMENT,
+	AST_EXPRESSION,
+	AST_VARIABLE,
+	AST_FUNCTION,
+};
+
 struct Expression {
 	ExpressionKind kind;
 	ExpressionFlags flags;
 	TypeID type;
 	Scope* scope;
-	V32 value;
+	Value* value;
 
 	union {
 		Expression* subs[3];
@@ -242,7 +251,9 @@ struct Expression {
 				Variable* var;
 				Function* func;
 				Struct* user_struct;
-				Enum* user_enum;
+				Enum*   user_enum;
+				StructField* struct_field;
+				EnumField*   enum_field;
 			};
 			Token* token;
 		} term;

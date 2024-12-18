@@ -252,7 +252,7 @@ static void scan_unary_ref(ScanHelper* helper, Scope* scope, Expression* expr) {
 	scan_expression(helper, scope, sub);
 
 	if (!ts_is_ptr(sub->type))
-		errore(sub, 3, "Expression must be a pointer.\n");
+		errore(sub, 3, "Cannot get reference of type '%'.\n", arg_type(sub->type));
 
 	expr->type = ts_get_subtype(sub->type);
 }
@@ -372,9 +372,7 @@ static void scan_binary_sub(ScanHelper* helper, Scope* scope, Expression* expr) 
 	// *T - int
 	if (ts_is_ptr(ltype) && ts_is_integral_type(rtype)) {
 		insert_cast_to_integral(helper, &expr->right);
-
 		expr->type = ltype;
-
 		return;
 	}
 
@@ -382,9 +380,7 @@ static void scan_binary_sub(ScanHelper* helper, Scope* scope, Expression* expr) 
 	if (ltype == TYPE_FLOAT64 || rtype == TYPE_FLOAT64) {
 		insert_cast_expression(helper, &expr->left,  TYPE_FLOAT64);
 		insert_cast_expression(helper, &expr->right, TYPE_FLOAT64);
-
 		expr->type = TYPE_FLOAT64;
-
 		return;
 	}
 
@@ -392,9 +388,7 @@ static void scan_binary_sub(ScanHelper* helper, Scope* scope, Expression* expr) 
 	if (ltype == TYPE_FLOAT32 || rtype == TYPE_FLOAT32) {
 		insert_cast_expression(helper, &expr->left,  TYPE_FLOAT32);
 		insert_cast_expression(helper, &expr->right, TYPE_FLOAT32);
-
 		expr->type = TYPE_FLOAT32;
-
 		return;
 	}
 
@@ -814,8 +808,19 @@ static void prescan_function(ScanHelper* helper, Function* func) {
 
 }
 
-static void prescan(ScanHelper* helper)
-{
+static void generate_struct_closure(ScanHelper* helper, Struct* s) {
+	for (u32 i = 0; i < s->field_count; i++) {
+		StructField* field = s->fields + i;
+	}
+}
+
+static void prescan_struct(ScanHelper* helper, Struct* s) {
+	for (u32 i = 0; i < s->field_count; i++) {
+		StructField* field = s->fields + i;
+	}
+}
+
+static void prescan(ScanHelper* helper) {
 	Module* module = helper->module;
 
 	for (u32 i = 0; i < module->function_count; i++) {
@@ -824,7 +829,15 @@ static void prescan(ScanHelper* helper)
 		prescan_function(helper, function);
 		print("Function '%' has type %\n", arg_string(function->name->string), arg_type(function->type));
 	}
+
+	for (u32 i = 0; i < module->struct_count; i++) {
+		Struct* s = &module->structs[i];
+		prescan_struct(helper, s);
+	}
 }
+
+// static void declare_dependency_typed(Depender depender, Expression* target) {
+// }
 
 static void scan_module(Module* module) {
 	ScanHelper helper = (ScanHelper){

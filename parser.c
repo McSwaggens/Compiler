@@ -509,7 +509,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 				.kind = EXPR_TRUE,
 				.flags = EXPR_FLAG_CONSTANT,
 				.type = TYPE_BOOL,
-				.value = ir_int(1),
+				.value = ir_const_int(1),
 			};
 			token++;
 		} break;
@@ -519,7 +519,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 				.kind  = EXPR_FALSE,
 				.flags = EXPR_FLAG_CONSTANT | EXPR_FLAG_CONSTANT,
 				.type = TYPE_BOOL,
-				.value = ir_int(0),
+				.value = ir_const_int(0),
 			};
 			token++;
 		} break;
@@ -530,7 +530,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 				.flags = EXPR_FLAG_CONSTANT | EXPR_FLAG_CONSTANT,
 				.type = ts_get_ptr(TYPE_BYTE),
 				.term.token = token,
-				.value = ir_int(0),
+				.value = ir_const_int(0),
 			};
 			token++;
 		} break;
@@ -547,7 +547,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 				.kind  = EXPR_LITERAL,
 				.flags = EXPR_FLAG_CONSTANT | EXPR_FLAG_CONSTANT,
 				.type = type_lut[token->kind],
-				.value = ir_int(token->i),
+				.value = ir_const_int(token->i),
 				.term.token = token,
 			};
 			token++;
@@ -558,7 +558,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 				.kind  = EXPR_LITERAL,
 				.flags = EXPR_FLAG_CONSTANT | EXPR_FLAG_CONSTANT,
 				.type = type_lut[token->kind],
-				.value = ir_f32(token->f),
+				.value = ir_const_f32(token->f),
 				.term.token = token,
 			};
 			token++;
@@ -569,7 +569,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 				.kind  = EXPR_LITERAL,
 				.flags = EXPR_FLAG_CONSTANT | EXPR_FLAG_CONSTANT,
 				.type = type_lut[token->kind],
-				.value = ir_f64(token->d),
+				.value = ir_const_f64(token->d),
 				.term.token = token,
 			};
 			token++;
@@ -605,7 +605,7 @@ static Token* internal_parse_expression(Module* module, Token* token, bool allow
 				.kind = EXPR_BASETYPE_PRIMITIVE,
 				.flags = EXPR_FLAG_CONSTANT,
 				.type = TYPE_TYPEID,
-				.value = ir_int(type_lut[token->kind]),
+				.value = ir_const_int(type_lut[token->kind]),
 				.term.token = token,
 			};
 			token++;

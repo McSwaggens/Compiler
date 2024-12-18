@@ -1,8 +1,13 @@
-Foo():
-	x := Add(1, 2)
+Alpha() -> int if TEST = 3 else float32:
+	return 123
 
-Add(a: int, b: int) -> int:
-	c : *int = null
-	x : int = @c
-	return c
+TEST := Foo()
+
+Foo() -> int:
+	x := Add(1, 2)
+	return x
+
+Add(a : int, b : int) -> int:
+	return a + b
+
 
