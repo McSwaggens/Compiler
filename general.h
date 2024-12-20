@@ -87,7 +87,7 @@ static inline s64 count_leading_zeroes64(s64 n) { return n == 0 ? 64 : __builtin
 static inline s64 next_pow2(s64 n) { return 1llu << (64llu - count_leading_zeroes64(n)); }
 
 static inline s64 boi(s64 n) { return 64-count_leading_zeroes64(n); }
-static inline s64 bit_count(s64 n) { return __builtin_popcount(n); }
+static inline s64 bit_count(s64 n) { return __builtin_popcountll(n); }
 
 static inline bool is_pow2_or_zero(u64 n) {
 	return (n & n-1) == 0;
