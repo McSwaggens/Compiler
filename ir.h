@@ -13,10 +13,7 @@ typedef enum RelationKind RelationKind;
 typedef enum ValueFlags   ValueFlags;
 
 enum ValueFlags {
-	VALUE_CONST_INT  = 1 << 0,
-	VALUE_CONST_F32  = 1 << 1,
-	VALUE_CONST_F64  = 1 << 2,
-	VALUE_CONST_MASK = VALUE_CONST_INT | VALUE_CONST_F32 | VALUE_CONST_F64,
+	VALUE_FLAG_CONSTANT = 1 << 0,
 };
 
 enum RelationKind {
@@ -53,7 +50,11 @@ struct Value {
 	ValueFlags flags;
 	RelationSet relations;
 
-	u64 constant_value;
+	union {
+		u64 integer;
+		f32 fp32;
+		f64 fp64;
+	};
 };
 
 struct Key {

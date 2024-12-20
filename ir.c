@@ -5,6 +5,7 @@
 static Value* value_pool = null;
 static const u64 VALUE_POOL_LENGTH = 1 << 30;
 static Value* value_pool_head = null;
+static Value* value_pool_end  = null;
 
 typedef struct VcHashTable_Entry {
 	u64 const_value;
@@ -30,8 +31,7 @@ static Value* alloc_value(void) {
 	return value_pool_head++;
 }
 
-static RelationSet expand_relation_set(RelationSet* old) {
-}
+static RelationSet expand_relation_set(RelationSet* old);
 
 static Value* ir_const_int(u64 n) {
 	if (n + 128 < 256)
@@ -42,7 +42,7 @@ static Value* ir_const_int(u64 n) {
 	for (u32 i = 0; i < block->count; i++) {
 		VcHashTable_Entry* entry = &block->entries[i];
 
-		if (entry->value != n) continue;
+		if (entry->value->integer != n) continue;
 
 		return entry->value;
 	}

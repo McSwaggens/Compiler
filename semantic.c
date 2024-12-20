@@ -218,10 +218,10 @@ static void scan_unary_ptr(ScanHelper* helper, Scope* scope, Expression* expr) {
 	assert(sub->type);
 
 	if (sub->type == TYPE_TYPEID && (sub->flags & EXPR_FLAG_CONSTANT)) {
-		Value* v = sub->value;
 		assert(sub->value);
-		assert(v->is_const);
-		TypeID subtype = v->const_int;
+		Value* v = sub->value;
+		assert(v->flags & VALUE_FLAG_CONSTANT);
+		TypeID subtype = v->integer;
 		TypeID newtype = ts_get_ptr(subtype);
 
 		*expr = (Expression) {
@@ -625,7 +625,7 @@ static void scan_expression(ScanHelper* helper, Scope* scope, Expression* expr) 
 static void scan_variable(ScanHelper* helper, Scope* scope, Variable* var) {
 	if (var->type_expr) {
 		scan_expression(helper, scope, var->type_expr);
-		var->type = ir_get_const_int(var->type_expr->value);
+		var->type = var->type_expr->value->integer;
 
 		if (var->type == TYPE_EMPTY_TUPLE)
 			errore(var->type_expr, 3, "Cannot create variable with empty tuple type.\n");
@@ -792,7 +792,7 @@ static void prescan_function(ScanHelper* helper, Function* func) {
 		if (!(retexpr->flags & EXPR_FLAG_CONSTANT))
 			errore(retexpr, 5, "Return type must be a constant.\n", arg_expression(retexpr));
 
-		output_type = ir_get_const_int(func->return_type_expr->value);
+		output_type = func->return_type_expr->value->integer;
 	}
 
 	TypeID param_types[func->param_count];
