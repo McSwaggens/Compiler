@@ -15,7 +15,6 @@ typedef s32 FileHandle32;
 
 typedef enum FileMode {
 	FILE_MODE_OPEN,      // Open an existing file.
-	FILE_MODE_DIRECTORY, // Open an existing file.
 	FILE_MODE_APPEND,    // Open an existing file and go to the end.
 	FILE_MODE_TRUNCATE,  // Open and truncate an existing file.
 	FILE_MODE_CREATE,    // Create a file that doesn't already exist.

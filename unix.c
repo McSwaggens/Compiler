@@ -1,19 +1,26 @@
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/sysinfo.h>
 #include <fcntl.h>
 #include <unistd.h>
 
 #define OS_PAGE_SIZE (16 << 10)
 
-static byte* macos_allocate_virtual_pages(u64 size) {
+static u64 get_system_ram(void) {
+	struct sysinfo info;
+	int x = sysinfo(&info);
+	return info.totalram * info.mem_unit;
+}
+
+static byte* unix_allocate_virtual_pages(u64 size) {
 	size = round_to_nearest_mulpow2(size, OS_PAGE_SIZE);
 
 	void* page = mmap(
 		0,
 		size,
 		PROT_READ | PROT_WRITE,
-		MAP_ANON | MAP_PRIVATE,
+		MAP_ANON  | MAP_PRIVATE | MAP_NORESERVE,
 		-1,
 		0
 	);
@@ -22,7 +29,7 @@ static byte* macos_allocate_virtual_pages(u64 size) {
 	return page;
 }
 
-static void macos_free_virtual_pages(byte* p, u64 size) {
+static void unix_free_virtual_pages(byte* p, u64 size) {
 	size = round_to_nearest_mulpow2(size, OS_PAGE_SIZE);
 	int ret = munmap(p, size);
 	assert(ret == 0);
@@ -50,7 +57,6 @@ static FileHandle32 open_file(String path, FileMode mode, FileAccessFlags access
 
 	switch (mode) {
 		case FILE_MODE_OPEN:                                            break;
-		case FILE_MODE_DIRECTORY:          flags |= O_DIRECTORY;        break;
 		case FILE_MODE_APPEND:             flags |= O_APPEND;           break;
 		case FILE_MODE_TRUNCATE:           flags |= O_TRUNC;            break;
 		case FILE_MODE_CREATE:             flags |= O_CREAT | O_EXCL;   break;

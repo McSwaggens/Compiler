@@ -3,11 +3,11 @@
 // ------------------------------------ //
 
 static void* alloc_virtual_page(u64 size) {
-	return macos_allocate_virtual_pages(size);
+	return unix_allocate_virtual_pages(size);
 }
 
 static void free_virtual_pages(void* page, u64 size) {
-	macos_free_virtual_pages(page, size);
+	unix_free_virtual_pages(page, size);
 }
 
 // ------------------------------------ //

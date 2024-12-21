@@ -1,8 +1,7 @@
 #include "type.h"
 
 #define TYPE_TABLE_SIZE (1llu<<TYPEID_INDEX_BITS)
-// @Note: ELF .zero pages are mapped but aren't initially backed by physical memory.
-static Type ts_table[TYPE_TABLE_SIZE] = { 0 };
+static Type* ts_table = null;
 static u32 ts_table_head;
 
 static inline TypeKind ts_get_kind(TypeID  id) { return id >> TYPEID_INDEX_BITS; }
@@ -11,7 +10,8 @@ static inline Type*    ts_get_info(TypeID id)  { return ts_table + ts_get_index(
 static inline u64      ts_get_size(TypeID id)  { return ts_get_info(id)->size; }
 
 static void ts_init(void) {
-	ts_table_head= LARGEST_CORE_TYPE_INDEX+1;
+	ts_table = alloc(sizeof(Type)*TYPE_TABLE_SIZE);
+	ts_table_head = LARGEST_CORE_TYPE_INDEX+1;
 
 	*ts_get_info(TYPE_BYTE)    = (Type){ .size = 1 };
 	*ts_get_info(TYPE_BOOL)    = (Type){ .size = 1 };

@@ -12,12 +12,8 @@ args = \
 	# -static\
 	# -nolibc\
 
-compiler: *.c *.h *.asm makefile
+compiler: *.c *.h makefile
 	clang compiler.c $(args) -o compiler
-
-linux: *.c *.h *.asm makefile
-	nasm -felf64 extra.asm -o assembler_stuff.o
-	# objdump -drwCS --no-addresses --no-show-raw-insn --visualize-jumps -Mintel -Mx86-64 compiler > compiler.asm
 
 clean:
 	rm *.o ./compiler
