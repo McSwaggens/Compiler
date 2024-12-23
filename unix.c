@@ -1,17 +1,12 @@
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/sysinfo.h>
 #include <fcntl.h>
 #include <unistd.h>
 
 #define OS_PAGE_SIZE (16 << 10)
 
-static u64 get_system_ram(void) {
-	struct sysinfo info;
-	int x = sysinfo(&info);
-	return info.totalram * info.mem_unit;
-}
+#include "macos.c"
 
 static byte* unix_allocate_virtual_pages(u64 size) {
 	size = round_to_nearest_mulpow2(size, OS_PAGE_SIZE);
