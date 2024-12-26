@@ -6,7 +6,11 @@
 
 #define OS_PAGE_SIZE (16 << 10)
 
-#include "macos.c"
+#ifdef __APPLE__
+	#include "macos.c"
+#else
+	#include "linux.c"
+#endif
 
 static byte* unix_allocate_virtual_pages(u64 size) {
 	size = round_to_nearest_mulpow2(size, OS_PAGE_SIZE);
