@@ -42,8 +42,7 @@ struct Relation {
 
 struct RelationSet {
 	Relation* relations;
-	u16 count;
-	u16 capacity;
+	u32 count;
 };
 
 struct Value {
@@ -76,10 +75,9 @@ struct Trigger {
 
 static void ir_init(void);
 static Value* make_value(void);
-static RelationSet expand_relation_set(RelationSet* old);
 
-static Value* ir_const_int(u64 n);
-static Value* ir_const_f32(f32 f);
-static Value* ir_const_f64(f64 f);
+static Value* ir_int(u64 n);
+static Value* ir_f32(f32 f);
+static Value* ir_f64(f64 f);
 
 #endif

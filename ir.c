@@ -34,13 +34,11 @@ static void ir_init(void) {
 	zero(constant_hashtable, sizeof(constant_hashtable));
 }
 
-static Value* alloc_value(void) {
+static Value* make_value(void) {
 	return value_stack_head++;
 }
 
-static RelationSet expand_relation_set(RelationSet* old);
-
-static Value* ir_const_int(u64 n) {
+static Value* ir_int(u64 n) {
 	if (n + 128 < 256)
 		return value_stack + (n + 128);
 
@@ -54,13 +52,16 @@ static Value* ir_const_int(u64 n) {
 		return entry->value;
 	}
 
-	Value* new_value = alloc_value();
+	Value* new_value = make_value();
+	*new_value = (Value) {
+		.integer = n,
+		.flags = VALUE_FLAG_CONSTANT,
+	};
 
 	VcHashTable_Entry new_entry = {
 		.value = new_value,
 		.const_value = n,
 	};
-
 
 	block->entries = realloc(
 		block->entries,
@@ -73,12 +74,59 @@ static Value* ir_const_int(u64 n) {
 	return new_value;
 }
 
-static Value* ir_const_f32(f32 f) {
-	return ir_const_int((u64)*(u32*)&f);
+static Value* ir_f32(f32 f) {
+	Value* v = ir_int((u64)*(u32*)&f);
+	v->fp32 = f;
+	return v;
 }
 
-static Value* ir_const_f64(f64 f) {
-	return ir_const_int(*(u64*)&f);
+static Value* ir_f64(f64 f) {
+	Value* v = ir_int(*(u64*)&f);
+	v->fp64 = f;
+	return v;
 }
 
+static void ir_insert_relation(RelationSet* set, Relation relation) {
+	set->relations = realloc(set->relations, sizeof(Relation)*set->count, sizeof(Relation)*(set->count+1));
+	set->relations[set->count++] = relation;
+}
+
+static void ir_insert_distance_relation(Value* from, Value* to, Value* dist, Context* context) {
+	// Filter out const to const relations?
+	if (value == ir_int(0))
+		return value;
+
+	if (from->flags & to->flags & VALUE_FLAG_CONSTANT)
+		return ir_int(to-integer - from->integer);
+
+	for (u32 i = 0; i < value->relations.count; i++) {
+		Relation* relation = &value->relations.relations[i];
+		if (relation->kind != REL_SUB) continue;
+		if (relation->to != ir_int(0)) continue;
+		return relation->value;
+	}
+
+	Value* result = make_value();
+	ir_relate_distance(value, ir_int(0), result);
+	return result;
+}
+
+static Value* ir_int_negative(Value* value) {
+	if (value == ir_int(0))
+		return value;
+
+	if (value->flags & VALUE_FLAG_CONSTANT)
+		return ir_int(-value->integer);
+
+	for (u32 i = 0; i < value->relations.count; i++) {
+		Relation* relation = &value->relations.relations[i];
+		if (relation->kind != REL_SUB)   continue;
+		if (relation->to   != ir_int(0)) continue;
+		return relation->value;
+	}
+
+	Value* result= make_value();
+	ir_relate_distance(value, ir_int(0), result);
+	return result;
+}
 
