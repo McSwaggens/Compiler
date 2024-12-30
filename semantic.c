@@ -204,11 +204,11 @@ static void scan_formal_usertype_identifier(ScanHelper* helper, Scope* scope, Ex
 
 	if (utr.kind == TYPE_KIND_STRUCT) {
 		expr->kind = EXPR_BASETYPE_STRUCT;
-		expr->value = ir_const_int((u64)utr.s);
+		expr->value = ir_int((u64)utr.s);
 	}
 	else {
 		expr->kind = EXPR_BASETYPE_ENUM;
-		expr->value = ir_const_int((u64)utr.e);
+		expr->value = ir_int((u64)utr.e);
 	}
 }
 
@@ -228,7 +228,7 @@ static void scan_unary_ptr(ScanHelper* helper, Scope* scope, Expression* expr) {
 			.kind  = EXPR_SPEC_PTR,
 			.flags = expr->flags,
 			.type  = TYPE_TYPEID,
-			.value = ir_const_int(newtype),
+			.value = ir_int(newtype),
 
 			.specifier = {
 				.sub    = sub,

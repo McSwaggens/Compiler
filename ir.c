@@ -2,6 +2,8 @@
 #include "ast.h"
 #include "alloc.h"
 
+static Context empty_context;
+
 static Value* value_stack = null;
 static const u64 VALUE_POOL_LENGTH = 1 << 30;
 static Value* value_stack_head = null;
@@ -91,42 +93,58 @@ static void ir_insert_relation(RelationSet* set, Relation relation) {
 	set->relations[set->count++] = relation;
 }
 
-static void ir_insert_distance_relation(Value* from, Value* to, Value* dist, Context* context) {
+static Value* ir_dist(Context* context, Value* from, Value* to) {
 	// Filter out const to const relations?
-	if (value == ir_int(0))
-		return value;
+	if (from == ir_int(0))
+		return from;
 
 	if (from->flags & to->flags & VALUE_FLAG_CONSTANT)
-		return ir_int(to-integer - from->integer);
+		return ir_int(to->integer - from->integer);
 
-	for (u32 i = 0; i < value->relations.count; i++) {
-		Relation* relation = &value->relations.relations[i];
+	for (u32 i = 0; i < from->relations.count; i++) {
+		Relation* relation = &from->relations.relations[i];
 		if (relation->kind != REL_SUB) continue;
 		if (relation->to != ir_int(0)) continue;
 		return relation->value;
 	}
 
-	Value* result = make_value();
-	ir_relate_distance(value, ir_int(0), result);
-	return result;
+	Value* stub = make_value();
+	ir_insert_relation(&from->relations, (Relation){
+		.context = context,
+		.kind = REL_SUB,
+		.value = stub,
+		.to = to,
+	});
+
+	return stub;
 }
 
-static Value* ir_int_negative(Value* value) {
-	if (value == ir_int(0))
-		return value;
+static Value* ir_ineg(Context* context, Value* value) {
+	return ir_dist(context, value, ir_int(0));
+}
 
-	if (value->flags & VALUE_FLAG_CONSTANT)
-		return ir_int(-value->integer);
+static Value* ir_imul(Context* context, Value* from, Value* value) {
+	if (from == ir_int(0) || value == ir_int(0)) return ir_int(0);
+	if (from == ir_int(1) || value == ir_int(1)) return ir_int(1);
 
-	for (u32 i = 0; i < value->relations.count; i++) {
-		Relation* relation = &value->relations.relations[i];
-		if (relation->kind != REL_SUB)   continue;
-		if (relation->to   != ir_int(0)) continue;
-		return relation->value;
-	}
+	if (from  == ir_int(-1)) return ir_ineg(context, value);
+	if (value == ir_int(-1)) return ir_ineg(context, from);
 
-	Value* result= make_value();
-	ir_relate_distance(value, ir_int(0), result);
-	return result;
+	if (from->flags & value->flags & VALUE_FLAG_CONSTANT)
+		return ir_int(from->integer * value->integer);
+
+	Value* to = make_value();
+	ir_insert_relation(&from->relations, (Relation){
+		.context = context,
+		.kind = REL_IMUL,
+		.value = value,
+		.to = to,
+	});
+
+	return to;
+}
+
+Context* context_intersect(Context* a, Context* b) {
+	return null;
 }
 

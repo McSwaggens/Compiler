@@ -28,16 +28,19 @@ enum RelationKind {
 	REL_UG,
 	REL_UGE,
 	REL_SUB,
-	REL_UMUL,
+	REL_IMUL,
 	REL_INDEX,
 };
+
+#define RELATION_KIND_COUNT (REL_INDEX + 1)
 
 enum Resolution { UNKNOWN = 0, KNOWN_FALSE = 1, KNOWN_TRUE = 2 };
 
 struct Relation {
+	Context* context;
 	RelationKind kind;
-	struct Value* to;
-	struct Value* value;
+	Value* to;
+	Value* value;
 };
 
 struct RelationSet {
@@ -57,15 +60,14 @@ struct Value {
 };
 
 struct Key {
-	RelationKind relation;
+	RelationKind kind;
 	Value* row;
 	Value* col;
 };
 
 struct Context {
-	u16 count;
-	u16 capacity;
-	Key* keys;
+	u16 counts[RELATION_KIND_COUNT];
+	byte keydata[];
 };
 
 struct Trigger {
