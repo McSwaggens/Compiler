@@ -78,13 +78,11 @@ static Value* ir_int(u64 n) {
 
 static Value* ir_f32(f32 f) {
 	Value* v = ir_int((u64)*(u32*)&f);
-	v->fp32 = f;
 	return v;
 }
 
 static Value* ir_f64(f64 f) {
 	Value* v = ir_int(*(u64*)&f);
-	v->fp64 = f;
 	return v;
 }
 
