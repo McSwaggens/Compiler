@@ -226,4 +226,10 @@ static void* realloc(void* p, u64 oldsize, u64 newsize) {
 	return new_alloc;
 }
 
+static void* copyalloc(void* p, u64 size) {
+	void* result = alloc(size);
+	copy(result, p, size);
+	return result;
+}
+
 // ------------------------------------ //

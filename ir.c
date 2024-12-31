@@ -2,7 +2,12 @@
 #include "ast.h"
 #include "alloc.h"
 
-static Context empty_context;
+static Context* empty_context;
+
+static Context* context_stack = null;
+static Context* context_stack_head = null;
+static Context* context_stack_end = null;
+static const u64 CONTEXT_POOL_LENGTH = 1 << 20;
 
 static Value* value_stack = null;
 static const u64 VALUE_POOL_LENGTH = 1 << 30;
@@ -22,6 +27,11 @@ typedef struct VcHashTable_EntryBlock {
 VcHashTable_EntryBlock constant_hashtable[4096];
 
 static void ir_init(void) {
+	context_stack = alloc(sizeof(Context) * CONTEXT_POOL_LENGTH);
+	context_stack_head = context_stack;
+	context_stack_end = context_stack + CONTEXT_POOL_LENGTH;
+	empty_context = make_context(null, 0);
+
 	value_stack = alloc(sizeof(Value) * VALUE_POOL_LENGTH);
 	value_stack_head = value_stack;
 	value_stack_end = value_stack + VALUE_POOL_LENGTH;
@@ -33,7 +43,20 @@ static void ir_init(void) {
 		};
 	}
 
+	value_stack_head += 256;
+
 	zero(constant_hashtable, sizeof(constant_hashtable));
+}
+
+static Context* make_context(Key* keys, u32 key_count) {
+	Context* result = context_stack_head++;
+	*result = (Context){
+		.children = null,
+		.child_count = 0,
+		.keys = copyalloc(keys, sizeof(Key) * key_count),
+	};
+
+	return result;
 }
 
 static Value* make_value(void) {
@@ -142,7 +165,41 @@ static Value* ir_imul(Context* context, Value* from, Value* value) {
 	return to;
 }
 
-Context* context_intersect(Context* a, Context* b) {
-	return null;
+static Context* find_subcontext(Context* context, Key* keys, u32 key_count) {
+	for (u32 i = 0; i < key_count; i++) {
+		bool found = false;
+		Key* key = &keys[i];
+		for (u32 j = 0; j < context->child_count; j++) {
+			ContextChild* child = &context->children[j];
+
+			if (!compare(&child->key, key, sizeof(Key)))
+				continue;
+
+			context = child->context;
+			found = true;
+			break;
+		}
+
+		if (found)
+			continue;
+
+		Context* new_context = make_context(keys, key_count);
+		context->children = realloc(context->children, sizeof(ContextChild) * context->child_count, sizeof(ContextChild) * (context->child_count + 1));
+		context->children[context->child_count++] = (ContextChild){
+			.context = new_context,
+			.key = *key,
+		};
+
+		return new_context;
+	}
+
+	return context;
+}
+
+static Context* find_context(Key* keys, u32 key_count) {
+	if (key_count == 0)
+		return empty_context;
+
+	return find_subcontext(empty_context, keys, key_count);
 }
 

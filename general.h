@@ -68,9 +68,9 @@ typedef char byte;
 // ------------------------------------ //
 
 static void copy(void* to, const void* from, u64 size) { __builtin_memcpy(to, from, size); }
-static void move(void* to, const void* from, u64 size) { __builtin_memmove(to, from, size); }
+static void move(const void* from, void* to, u64 size) { __builtin_memmove(to, from, size); }
 static void zero(void* p, u64 size) { __builtin_memset(p, 0, size); }
-static bool compare(const void* a, const void* b, u64 count) { return __builtin_memcmp(a, b, count) == 0; }
+static bool compare(const void* a, const void* b, u64 size) { return __builtin_memcmp(a, b, size) == 0; }
 
 // ------------------------------------ //
 
@@ -155,6 +155,13 @@ static inline bool is_digit(char c)   { return (u8)(c - '0') < 10u; }
 static inline bool is_binary(char c)  { return (u8)(c - '0') < 2u; }
 static inline bool is_decimal(char c) { return (u8)(c - '0') < 10u; }
 static inline bool is_hex(char c)     { return (u8)(c - '0') < 10u || (u8)((c|0x20) - 'a') < 6u; }
+
+// ------------------------------------ //
+
+static byte* array_insert_single(byte* array, u64 element_count, u64 element_size, byte*  insertion_data,  u64 insertion_index);
+static byte* array_insert_multi(byte*  array, u64 element_count, u64 element_size, byte** insertion_datas, u64* insertion_indices);
+
+// ------------------------------------ //
 
 #define STRX(x) #x
 #define STR(x) STRX(x)

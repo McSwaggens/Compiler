@@ -3,11 +3,12 @@
 
 #include "general.h"
 
-typedef struct Value       Value;
-typedef struct Relation    Relation;
-typedef struct RelationSet RelationSet;
-typedef struct Key         Key;
-typedef struct Context     Context;
+typedef struct Value        Value;
+typedef struct Relation     Relation;
+typedef struct RelationSet  RelationSet;
+typedef struct Key          Key;
+typedef struct Context      Context;
+typedef struct ContextChild ContextChild;
 typedef enum Resolution   Resolution;
 typedef enum RelationKind RelationKind;
 typedef enum ValueFlags   ValueFlags;
@@ -44,13 +45,14 @@ struct Relation {
 };
 
 struct RelationSet {
-	Relation* relations;
 	u32 count;
+	Relation* relations;
 };
 
 struct Value {
 	ValueFlags flags;
 	RelationSet relations;
+
 
 	union {
 		u64 integer;
@@ -61,25 +63,36 @@ struct Value {
 
 struct Key {
 	RelationKind kind;
-	Value* row;
-	Value* col;
+	Value* from;
+	Value* value; // Optional
+	Value* to;
+};
+
+struct ContextChild {
+	Key key;
+	Context* context;
 };
 
 struct Context {
-	u16 counts[RELATION_KIND_COUNT];
-	byte keydata[];
+	u16 child_count;
+	ContextChild* children;
+	Key* keys;
+	u16 key_count;
 };
 
 struct Trigger {
 	Relation relation;
-	Context context;
+	Context* context;
 };
 
 static void ir_init(void);
 static Value* make_value(void);
+static Context* make_context(Key* keys, u32 key_count);
 
 static Value* ir_int(u64 n);
 static Value* ir_f32(f32 f);
 static Value* ir_f64(f64 f);
+
+static Context* base_context;
 
 #endif
