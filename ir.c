@@ -53,7 +53,8 @@ static Context* make_context(Key* keys, u32 key_count) {
 	*result = (Context){
 		.children = null,
 		.child_count = 0,
-		.keys = copyalloc(keys, sizeof(Key) * key_count),
+		.keys = keys,
+		.key_count = 0,
 	};
 
 	return result;
@@ -165,41 +166,83 @@ static Value* ir_imul(Context* context, Value* from, Value* value) {
 	return to;
 }
 
-static Context* find_subcontext(Context* context, Key* keys, u32 key_count) {
-	for (u32 i = 0; i < key_count; i++) {
-		bool found = false;
-		Key* key = &keys[i];
-		for (u32 j = 0; j < context->child_count; j++) {
-			ContextChild* child = &context->children[j];
+static void insert_context_child(Context* context, ContextChild new_child) {
+	context->children = realloc(context->children, sizeof(ContextChild) * context->child_count, sizeof(ContextChild) * (context->child_count + 1));
+	context->children[context->child_count++] = new_child;
+}
 
-			if (!compare(&child->key, key, sizeof(Key)))
+static ContextChild* find_child(Context* context, Key key) {
+	for (u32 i = 0; i < context->child_count; i++) {
+		ContextChild* child = &context->children[i];
+		if (!compare(&child->key, &key, sizeof(Key))) continue;
+		return child;
+	}
+
+	return null;
+}
+
+static Context* get_context(Key* keys, u32 key_count) {
+	Context* context = empty_context;
+	ContextChild* parent_child = null;
+
+	u32 i = 0;
+	for (; i < key_count; i++) {
+		for (; i < key_count && i < context->key_count && compare(context->keys + i, keys + i, sizeof(Key)); i++);
+		bool is_context_match = i == context->key_count;
+
+		if (is_context_match) {
+			if (key_count == context->key_count)
+				return context;
+
+			ContextChild* child = find_child(context, keys[i]);
+			if (child) {
+				parent_child = child;
+				context = child->context;
 				continue;
+			}
 
-			context = child->context;
-			found = true;
 			break;
 		}
 
-		if (found)
-			continue;
+		Context* middle = make_context(context->keys, i+1);
+		parent_child->context = middle;
+		insert_context_child(middle, (ContextChild){
+			.context = context,
+			.key = context->keys[i],
+		});
 
-		Context* new_context = make_context(keys, key_count);
-		context->children = realloc(context->children, sizeof(ContextChild) * context->child_count, sizeof(ContextChild) * (context->child_count + 1));
-		context->children[context->child_count++] = (ContextChild){
-			.context = new_context,
-			.key = *key,
-		};
+		if (i == key_count)
+			return middle;
 
-		return new_context;
+		context = middle;
+		break;
 	}
 
-	return context;
+	Context* result_context = make_context(copyalloc(keys, sizeof(Key) * key_count), key_count);
+	insert_context_child(context, (ContextChild){
+		.context = result_context,
+		.key = keys[i],
+	});
+	return result_context;
 }
 
-static Context* find_context(Key* keys, u32 key_count) {
-	if (key_count == 0)
-		return empty_context;
+// static Context* get_context(Key* keys, u32 key_count) {
+// 	Context* context = empty_context;
+// 	ContextChild* parent_child = null;
 
-	return find_subcontext(empty_context, keys, key_count);
-}
+// 	for (; i < key_count; i++) {
+// 		if (i >= context->key_count) {
+// 			ContextChild* child = find_child(context, keys[i]);
+// 			if (!child) break;
+// 			parent_child = child;
+// 			context = child->context;
+// 		}
+
+// 		assert(i < context->key_count);
+// 		if (!compare(&keys[i], &context->keys[i], sizeof(Key)))
+// 			break;
+// 	}
+
+// 	return result_context;
+// }
 
