@@ -188,20 +188,17 @@ static Context* get_context(Key* keys, u32 key_count) {
 	u32 i = 0;
 	for (; i < key_count; i++) {
 		for (; i < key_count && i < context->key_count && compare(context->keys + i, keys + i, sizeof(Key)); i++);
-		bool is_context_match = i == context->key_count;
 
-		if (is_context_match) {
+		if (i == context->key_count) {
 			if (key_count == context->key_count)
 				return context;
 
 			ContextChild* child = find_child(context, keys[i]);
-			if (child) {
-				parent_child = child;
-				context = child->context;
-				continue;
-			}
+			if (!child) break;
 
-			break;
+			parent_child = child;
+			context = child->context;
+			continue;
 		}
 
 		Context* middle = make_context(context->keys, i+1);
@@ -223,26 +220,7 @@ static Context* get_context(Key* keys, u32 key_count) {
 		.context = result_context,
 		.key = keys[i],
 	});
+
 	return result_context;
 }
-
-// static Context* get_context(Key* keys, u32 key_count) {
-// 	Context* context = empty_context;
-// 	ContextChild* parent_child = null;
-
-// 	for (; i < key_count; i++) {
-// 		if (i >= context->key_count) {
-// 			ContextChild* child = find_child(context, keys[i]);
-// 			if (!child) break;
-// 			parent_child = child;
-// 			context = child->context;
-// 		}
-
-// 		assert(i < context->key_count);
-// 		if (!compare(&keys[i], &context->keys[i], sizeof(Key)))
-// 			break;
-// 	}
-
-// 	return result_context;
-// }
 

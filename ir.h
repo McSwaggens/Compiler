@@ -80,11 +80,6 @@ struct Context {
 	u16 key_count;
 };
 
-struct Trigger {
-	Relation relation;
-	Context* context;
-};
-
 static void ir_init(void);
 static Value* make_value(void);
 static Context* make_context(Key* keys, u32 key_count);
