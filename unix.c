@@ -4,8 +4,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#define OS_PAGE_SIZE (16 << 10)
-
 #ifdef __APPLE__
 	#include "macos.c"
 #else
