@@ -25,6 +25,8 @@ static void* alloc(u64 size);
 static void  free(void* p, u64 size);
 static void* realloc(void* p, u64 oldsize, u64 newsize);
 static void* copyalloc(void* p, u64 size);
+static void* copyalloc_expand(void* p, u64 old_size, u64 new_size);
+#define real_stack_alloc(size) __builtin_alloca(size)
 
 // ------------------------------------ //
 

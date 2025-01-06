@@ -72,6 +72,7 @@ static void move(const void* from, void* to, u64 size) { __builtin_memmove(to, f
 static void zero(void* p, u64 size) { __builtin_memset(p, 0, size); }
 static bool compare(const void* a, const void* b, u64 size)   { return __builtin_memcmp(a, b, size) == 0; }
 static int  direction(const void* a, const void* b, u64 size) { return __builtin_memcmp(a, b, size); }
+static void swap(byte* a, byte* b, u64 size);
 
 // ------------------------------------ //
 

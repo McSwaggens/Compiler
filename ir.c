@@ -181,6 +181,44 @@ static ContextChild* find_child(Context* context, Key key) {
 	return null;
 }
 
+static Context* context_add_to_end_assume_sorted(Context* context, Key key) {
+	ContextChild* child = find_child(context, key);
+	if (child) return child->context;
+
+	Context* new_context = make_context(
+		copyalloc_expand(context->keys, sizeof(Key) * context->key_count, sizeof(Key) * (context->key_count + 1)),
+		context->key_count + 1
+	);
+
+	insert_context_child(context, (ContextChild){
+		.context = new_context,
+		.key = key,
+	});
+
+	return new_context;
+}
+
+static u32* search(u32* array, u32 count, u32 n) {
+	count >>= 1;
+	u32 p = count;
+	for (u32 i = 0; i < boi(count); i++) {
+		count >>= 1;
+		if (n < array[p]) { p -= count; continue; }
+		if (n > array[p]) { p += count; continue; }
+		return array + p;
+	}
+
+	return null;
+}
+
+static void insertion_sort(byte* array, u64 length, u64 element_size, int (*cmp)(byte* a, byte* b)) {
+	byte* end = array + element_size * length;
+	byte buf[element_size];
+
+	for (u32 i = 0; i < length; i++) {
+	}
+}
+
 static Context* get_context(Key* keys, u32 key_count) {
 	Context* context = empty_context;
 	ContextChild* parent_child = null;

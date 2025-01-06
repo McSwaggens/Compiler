@@ -29,3 +29,9 @@ static byte* array_insert_multi(byte* array, u64 element_count, u64 element_size
 	return null;
 }
 
+static void swap(byte* a, byte* b, u64 size) {
+	byte buffer[size];
+	copy(buffer, a, size);
+	copy(a, b, size);
+	copy(b, buffer, size);
+}

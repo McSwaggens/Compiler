@@ -232,4 +232,10 @@ static void* copyalloc(void* p, u64 size) {
 	return result;
 }
 
+static void* copyalloc_expand(void* p, u64 old_size, u64 new_size) {
+	void* result = alloc(new_size);
+	copy(result, p, min_u64(old_size, new_size));
+	return result;
+}
+
 // ------------------------------------ //
