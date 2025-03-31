@@ -410,6 +410,22 @@ static void scan_binary_sub(ScanHelper* helper, Scope* scope, Expression* expr) 
 	insert_cast_expression(helper, &expr->right, type);
 }
 
+static void scan_binary_mul(ScanHelper* helper, Scope* scope, Expression* expr) {
+	assert(false);
+}
+
+static void scan_binary_mod(ScanHelper* helper, Scope* scope, Expression* expr) {
+	assert(false);
+}
+
+static void scan_binary_div(ScanHelper* helper, Scope* scope, Expression* expr) {
+	assert(false);
+}
+
+static void scan_binary_bitwise(ScanHelper* helper, Scope* scope, Expression* expr) {
+	assert(false);
+}
+
 static bool is_type_indexable(TypeID tid) {
 	TypeKind kind = ts_get_kind(tid);
 
@@ -484,43 +500,24 @@ static void scan_expression(ScanHelper* helper, Scope* scope, Expression* expr) 
 		case EXPR_UNARY_IMPLICIT_CAST:
 			break; // parser.c sets up these expressions. No scan needed.
 
-		case EXPR_IDENTIFIER_FORMAL: {
-			scan_formal_usertype_identifier(helper, scope, expr);
-		} break;
+		case EXPR_IDENTIFIER_FORMAL: scan_formal_usertype_identifier(helper, scope, expr); break;
 
 		case EXPR_IDENTIFIER_CONSTANT:
-		case EXPR_IDENTIFIER_VARIABLE: {
-			scan_identifier(helper, scope, expr);
-		} break;
+		case EXPR_IDENTIFIER_VARIABLE: scan_identifier(helper, scope, expr); break;
 
-		case EXPR_ARRAY: {
-			scan_array(helper, scope, expr);
-		} break;
+		case EXPR_ARRAY:    scan_array(helper, scope, expr); break;
+		case EXPR_TUPLE:    scan_tuple(helper, scope, expr); break;
 
-		case EXPR_TUPLE: {
-			scan_tuple(helper, scope, expr);
-		} break;
-
-		case EXPR_SPEC_PTR: {
-			scan_expression(helper, scope, expr->specifier.sub);
-		} break;
-
-		case EXPR_SPEC_ARRAY: {
-			scan_expression(helper, scope, expr->specifier.sub);
-		} break;
+		case EXPR_SPEC_PTR:   scan_expression(helper, scope, expr->specifier.sub); break;
+		case EXPR_SPEC_ARRAY: scan_expression(helper, scope, expr->specifier.sub); break;
 
 		case EXPR_SPEC_FIXED: {
 			scan_expression(helper, scope, expr->specifier.length);
 			scan_expression(helper, scope, expr->specifier.sub);
 		} break;
 
-		case EXPR_UNARY_PTR: {
-			scan_unary_ptr(helper, scope, expr);
-		} break;
-
-		case EXPR_UNARY_REF: {
-			scan_unary_ref(helper, scope, expr);
-		} break;
+		case EXPR_UNARY_PTR: scan_unary_ptr(helper, scope, expr); break;
+		case EXPR_UNARY_REF: scan_unary_ref(helper, scope, expr); break;
 
 		case EXPR_UNARY_ABS:
 		case EXPR_UNARY_INVERSE:
@@ -545,26 +542,15 @@ static void scan_expression(ScanHelper* helper, Scope* scope, Expression* expr) 
 			expr->type = TYPE_BOOL;
 		} break;
 
-		case EXPR_BINARY_ADD: {
-			scan_binary_add(helper, scope, expr);
-		} break;
+		case EXPR_BINARY_ADD: scan_binary_add(helper, scope, expr); break;
+		case EXPR_BINARY_SUB: scan_binary_sub(helper, scope, expr); break;
+		case EXPR_BINARY_MUL: scan_binary_mul(helper, scope, expr); break;
+		case EXPR_BINARY_DIV: scan_binary_div(helper, scope, expr); break;
+		case EXPR_BINARY_MOD: scan_binary_mod(helper, scope, expr); break;
 
-		case EXPR_BINARY_SUB: {
-			scan_binary_sub(helper, scope, expr);
-		} break;
-
-		case EXPR_BINARY_MUL: {
-		} break;
-
-		case EXPR_BINARY_DIV: {
-		} break;
-
-		case EXPR_BINARY_MOD: {
-		} break;
-
-		case EXPR_BINARY_BIT_XOR:
-		case EXPR_BINARY_BIT_AND:
-		case EXPR_BINARY_BIT_OR:
+		case EXPR_BINARY_BIT_XOR: scan_binary_bitwise(helper, scope, expr); break;
+		case EXPR_BINARY_BIT_AND: scan_binary_bitwise(helper, scope, expr); break;
+		case EXPR_BINARY_BIT_OR:  scan_binary_bitwise(helper, scope, expr); break;
 
 		case EXPR_BINARY_EQUAL:
 		case EXPR_BINARY_NOT_EQUAL:
